@@ -1,0 +1,15 @@
+# App de departamentos — dependencias
+# Python 3.13 · entorno en .venv (no usar el Python global).
+# En Windows el alias `python` del Store no funciona: el venv se arma con el
+# launcher `py`.
+#
+# Recrear el entorno desde cero:
+#   py -m venv .venv
+#   .venv\Scripts\python -m pip install -r requirements.txt
+
+# Runtime
+customtkinter==6.0.0
+
+# Dev / tests / build
+pytest==9.1.1
+pyinstaller==6.22.3
