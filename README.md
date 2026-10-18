@@ -48,8 +48,8 @@ Requires **Windows 10/11** and **Python 3.13+**.
 
 ```powershell
 # 1. Clone the repository
-git clone https://github.com/LucaLaatigano/Apartments-Manager.git
-cd Apartments-Manager
+git clone https://github.com/LucaLaatigano/Brickly.git
+cd Brickly
 
 # 2. Set up virtual environment & install dependencies
 py -m venv .venv
