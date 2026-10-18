@@ -1,159 +1,99 @@
-# Gestión de Departamentos (Apartment Management System)
+# 🏢 Brickly
 
-A standalone Windows desktop application built with **Python**, **SQLite**, and **CustomTkinter** for managing rental apartment units, lease contracts, monthly rent collections, daily late-fee (arrears) calculations, and periodic CPI (*IPC*) rent adjustments.
+**Sistema ágil, moderno y local-first para la administración de departamentos en alquiler, cobranzas, mora diaria y ajustes por IPC.**
 
----
+> *A standalone Windows desktop app for managing rental units, lease contracts, arrears, and CPI adjustments.*
 
-## What It Does
-
-**Gestión de Departamentos** is designed for property administrators and landlords who want a fast, local-first tool to answer three core operational questions at a glance: *Who owes rent? Has this month been collected? Which contracts are due for a CPI adjustment?*
-
-### Key Features
-
-- **Dashboard (`Panel`)**
-  - First-time onboarding checklist guiding setup from adding units to recording the first payment.
-  - Real-time monthly KPIs: collected vs. expected rent progress, overdue unpaid installments, on-time pending installments, and contracts due for adjustment this month.
-  - Top 5 overdue installments sorted by days late, with one-click navigation directly into the payment panel.
-  - Automated actionable alerts for missing monthly CPI data, expired unrenewed contracts, and overdue database backups (> 14 days).
-
-- **Apartments & Contracts (`Departamentos`)**
-  - Full CRUD for managed units (address, floor, unit label, area in m², owner) with live debounced search and status filters (*All*, *Up to date*, *Owing*, *No contract*).
-  - Per-unit account statement view (`Detalle de departamento`) split into **Summary**, **Contract**, and **Installments & Payments**.
-  - Lease contract creation, editing, and tenant turnover/renewal (`Nuevo contrato`) that closes the previous contract while preserving full historical installments and payments.
-
-- **Collections & Arrears (`Cobranzas`)**
-  - **Monthly View (`Mes`):** Period navigator, pre-generation preview, and idempotent monthly installment generation (`Generar cuotas`) for all active contracts.
-  - **Arrears View (`Atrasos`):** Flat, cross-period list of all overdue unpaid installments ordered by days late.
-  - **Inline Payment Side Panel (`PanelPago`):** 380 px side panel (no blocking modals) with smart defaults (today's date, full balance + accrued late fee, last used payment method) and live validation for partial or full payments.
-
-- **CPI Adjustments (`Ajustes IPC`)**
-  - Monthly CPI (*Índice de Precios al Consumidor*) registry supporting positive and negative variations in basis points.
-  - Automatic detection of contracts reaching their N-month adjustment cycle (default: quarterly / 3 months) and compound variation calculation over the contract's base months: $\prod (1 + v_i) - 1$.
-  - **3-Step Adjustment Wizard:** Select contracts $\rightarrow$ Review calculated new rent (with optional manual percentage override requiring an explicit reason) $\rightarrow$ Apply atomically ("all or nothing").
-  - Immutable adjustment audit log (`Historial`).
-
-- **Reports & Backups (`Informes`)**
-  - Excel-friendly CSV exports (`UTF-8 with BOM`, `;` delimiter, comma decimals):
-    - Account statement (all units or per apartment).
-    - Monthly collections summary.
-    - Current overdue tenants (*Morosos de hoy*).
-  - Online safe SQLite backup using SQLite's native backup API (`Connection.backup`).
-
-- **Settings (`Configuracion`)**
-  - Configurable defaults for new contracts: due day (1–28), grace days, monthly late-fee interest rate, and installment rounding (`Centavos` or `$ 100`).
-  - Administrator contact details, database file location shortcut, backup reminder threshold, and manual backup trigger.
+[![Python](https://img.shields.io/badge/Python-3.13+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-3-003B57?style=flat&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![CustomTkinter](https://img.shields.io/badge/GUI-CustomTkinter-blue?style=flat)](https://customtkinter.tomschimansky.com/)
+[![Plataforma](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat&logo=windows)](https://microsoft.com/windows)
+[![Licencia](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.md)
 
 ---
 
-## Core Business Rules & Architecture
+## ⚡ ¿Qué es Brickly?
 
-The project follows a strict **4-layer Ports & Adapters (Hexagonal) architecture** ([ADR-0001](docs/adr/0001-arquitectura-de-capas.md)) and explicit domain rules ([ADR-0002](docs/adr/0002-reglas-de-negocio-mvp.md)):
+**Brickly** está diseñado para propietarios y administradores que necesitan responder en segundos a las tres preguntas operativas clave del día a día:
+1. **¿Quién debe alquiler hoy y cuánta mora acumuló?**
+2. **¿Se generaron y cobraron las cuotas del mes en curso?**
+3. **¿Qué contratos cumplen ciclo y toca aplicarles ajuste por IPC?**
 
-```text
-ui ──▶ aplicacion ──▶ dominio
-         ▲
-infraestructura ┘   (implements ports defined in aplicacion)
-```
-
-- **Zero Floating-Point Money:** All monetary amounts are stored and computed in integer cents (`int`), and rates/variations are stored in integer basis points (`100 bp = 1%`), enforced both in Python and via SQLite `STRICT` tables.
-- **Simple Daily Late Fee (`Mora`):** Calculated dynamically as of "today" (via an injectable `Reloj` clock) over the unpaid principal balance once the grace period is exceeded, and frozen into `imputaciones` when a payment is recorded.
-- **FIFO Payment Allocation:** Payments cover accrued late fees first and remaining principal second.
-- **Non-Retroactive CPI Adjustments:** Confirmed CPI adjustments update the contract's current rent amount for *future* installment generations without mutating already-issued installments or past payments.
-- **Architectural Boundary Enforcement:** Verified automatically by [`tests/test_arquitectura.py`](tests/test_arquitectura.py).
-
-### Project Structure
-
-```text
-departamentos-app/
-├── main.py                         # Composition root (wires DB, migrations, services, UI)
-├── GestionDepartamentos.spec       # PyInstaller build specification
-├── requirements.txt                # Pinned runtime and development dependencies
-├── docs/                           # ADRs and UX/UI specifications
-├── gestion/
-│   ├── dominio/                    # Pure business logic & entities (zero external imports)
-│   ├── aplicacion/                 # Use cases, DTOs, and port protocols (puertos.py)
-│   ├── infraestructura/            # SQLite repositories, sequential migrator, file/backup adapters
-│   └── ui/                         # CustomTkinter views, presenters, design tokens, and components
-└── tests/                          # Unit, integration, and architecture dependency tests
-```
+Todo funciona de manera **local**, sin servidores externos, sin dependencias en la nube y con almacenamiento transaccional seguro en SQLite.
 
 ---
 
-## Running the Standalone `.exe` (No Python Required)
+## ✨ Características Principales
 
-If you just want to use the application on Windows without setting up a development environment:
+| Módulo | Descripción |
+| :--- | :--- |
+| 📊 **Panel (Dashboard)** | KPIs mensuales en tiempo real, top 5 atrasos con cobro directo, alertas automáticas (IPC faltante, contratos vencidos, respaldos) y checklist de onboarding. |
+| 🏢 **Departamentos & Contratos** | Catálogo completo con búsqueda en vivo, filtros de estado, estados de cuenta por unidad y renovación de contratos preservando el historial. |
+| 💰 **Cobranzas & Atrasos** | Generación mensual idempotente de cuotas, vista consolidada de atrasos y **Panel lateral de Pago** (380 px) con cálculo dinámico de mora simple e imputación FIFO. |
+| 📈 **Ajustes IPC** | Registro de índices mensuales, detección automática de ciclos vencidos y **Wizard de ajuste** en 3 pasos con cálculo compuesto y anulación manual auditada. |
+| 📑 **Informes & Respaldo** | Exportación de estados de cuenta, recaudación y morosos a CSV formateado para Excel (`UTF-8 con BOM`) y copia de seguridad nativa con SQLite Backup API. |
+| ⚙️ **Configuración** | Parámetros predeterminados de contratos (día de vencimiento, gracia, tasa de mora diaria), datos del administrador y ruta de la base de datos. |
 
-1. Locate the compiled executable at:
+---
+
+## 🚀 Inicio Rápido
+
+### Opción 1: Ejecutable para Windows (Sin instalar Python)
+1. Descarga o localiza el binario compilado en:
    ```text
    dist\GestionDepartamentos.exe
    ```
-2. Double-click **`GestionDepartamentos.exe`** (or run `.\dist\GestionDepartamentos.exe` from PowerShell / Command Prompt).
-3. **Database & Migrations:** On first launch, the application automatically creates its SQLite database and runs all schema migrations at:
-   ```text
-   %APPDATA%\GestionDepartamentos\datos.sqlite3
-   ```
-   *(Typically `C:\Users\<YourUser>\AppData\Roaming\GestionDepartamentos\datos.sqlite3`.)*
-   Because the database is stored in your user profile (`%APPDATA%`), you can move or run `GestionDepartamentos.exe` from any folder (such as Desktop or `Program Files`) without losing your data.
+2. Ejecútalo directamente con doble clic. La base de datos SQLite se crea automáticamente en `%APPDATA%\GestionDepartamentos\datos.sqlite3`.
 
----
-
-## Installation & Running from Source
-
-### Prerequisites
-
-- **OS:** Windows 10 or Windows 11
-- **Python:** Python **3.13+** (recommended to invoke via the Windows `py` launcher)
-
-### 1. Clone or Download the Repository
+### Opción 2: Ejecución desde el código fuente
+Requiere **Windows 10/11** y **Python 3.13+**.
 
 ```powershell
-git clone <repository-url>
-cd departamentos-app
-```
+# 1. Clonar el repositorio
+git clone https://github.com/LucaLaatigano/Apartments-Manager.git
+cd Apartments-Manager
 
-### 2. Create the Virtual Environment & Install Dependencies
-
-> **Note for Windows users:** Use the `py` launcher to create the virtual environment, and run all commands through `.venv\Scripts\python` to avoid the Windows Store Python alias.
-
-```powershell
+# 2. Crear entorno virtual e instalar dependencias
 py -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
-```
 
-### 3. Run the Application in Development Mode
-
-```powershell
+# 3. Iniciar la aplicación
 .venv\Scripts\python main.py
 ```
 
-### 4. Run the Test Suite
+---
 
-To run all unit, integration, and architectural boundary tests:
+## 🛠️ Comandos de Desarrollo
 
-```powershell
-.venv\Scripts\python -m pytest tests/
-```
+| Acción | Comando PowerShell |
+| :--- | :--- |
+| **Ejecutar tests** | `.venv\Scripts\python -m pytest tests/` |
+| **Compilar `.exe`** | `.venv\Scripts\python -m PyInstaller --clean --noconfirm GestionDepartamentos.spec` |
 
 ---
 
-## Building the `.exe` from Source
+## 🏛️ Arquitectura & Principios de Negocio
 
-The project includes a reproducible **PyInstaller** specification ([`GestionDepartamentos.spec`](GestionDepartamentos.spec)) that bundles `customtkinter` assets and the SQL migrations folder (`gestion/infraestructura/db/migraciones`).
-
-To rebuild `dist\GestionDepartamentos.exe`:
-
-```powershell
-.venv\Scripts\python -m PyInstaller --clean --noconfirm GestionDepartamentos.spec
-```
-
-Once completed, the standalone single-file executable will be available at:
+El proyecto sigue una arquitectura **Hexagonal / Puertos y Adaptadores (4 capas)** estricta, validada automáticamente por tests de arquitectura:
 
 ```text
-dist\GestionDepartamentos.exe
+gestion/ui  ──▶  gestion/aplicacion  ──▶  gestion/dominio
+                         ▲
+gestion/infraestructura  ┘   (implementa puertos de aplicación)
 ```
+
+- **Cero Floats:** Todo cálculo monetario se realiza en centavos enteros (`int`) y las tasas en puntos básicos (`100 bp = 1%`), tanto en dominio como en SQLite `STRICT`.
+- **Mora Diaria Simple:** Calculada a la fecha de consulta (`Reloj`) sobre el saldo principal impago una vez superado el período de gracia.
+- **Imputación FIFO:** Los pagos amortizan primero el interés por mora devengado y luego el capital de la cuota.
+- **Ajustes IPC no retroactivos:** Los ajustes actualizan el canon locativo futuro sin alterar cuotas ya emitidas.
+
+Para más detalles, consulta las decisiones de diseño:
+- [ADR-0001: Arquitectura de capas](docs/adr/0001-arquitectura-de-capas.md)
+- [ADR-0002: Reglas de negocio del MVP](docs/adr/0002-reglas-de-negocio-mvp.md)
+- [Especificación UX/UI](docs/ux/especificacion-ux-ui.md)
 
 ---
 
-## License
+## 📄 Licencia
 
-This project is licensed under the **MIT License**. See [LICENSE.md](LICENSE.md) for details.
+Distribuido bajo la Licencia **MIT**. Consulta [LICENSE.md](LICENSE.md) para más información.

@@ -32,7 +32,7 @@ class VentanaPrincipal(ctk.CTk):
         super().__init__()
         estilo.inicializar()
         self.servicios = servicios
-        self.title("Gestión de Departamentos")
+        self.title("Brickly")
         self.configure(fg_color=estilo.FONDO_APP)
         self.minsize(1100, 700)
 
@@ -65,8 +65,8 @@ class VentanaPrincipal(ctk.CTk):
 
         ctk.CTkLabel(
             barra,
-            text="Gestión de\nDepartamentos",
-            font=estilo.FUENTE_SECCION,
+            text="Brickly",
+            font=estilo.FUENTE_TITULO,
             text_color=estilo.TEXTO,
             justify="left",
             anchor="w",

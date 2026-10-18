@@ -157,7 +157,7 @@ class VistaConfiguracion(VistaBase):
         tarjeta.grid(row=1, column=1, sticky="nsew", pady=(estilo.GAP, 0))
         ctk.CTkLabel(
             tarjeta.cuerpo,
-            text=f"Gestión de Departamentos {VERSION}",
+            text=f"Brickly {VERSION}",
             font=estilo.FUENTE_CUERPO_NEGRITA,
             text_color=estilo.TEXTO,
             anchor="w",

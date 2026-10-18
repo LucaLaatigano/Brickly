@@ -1,4 +1,4 @@
-# Especificación UX/UI — Gestión de Departamentos
+# Especificación UX/UI — Brickly
 
 - **Estado:** v1 — propuesta para H0 · **Fecha:** 2026-10-15
 - **Para quién:** senior-dev (implementación) · qa (los estados de cada pantalla son casos de prueba)
@@ -20,7 +20,7 @@
 
 ### 1.2 Ventana y shell
 
-- Título: `Gestión de Departamentos`. Tamaño inicial 1280×800, **mínimo 1100×700**, centrada al abrir.
+- Título: `Brickly`. Tamaño inicial 1280×800, **mínimo 1100×700**, centrada al abrir.
 - `set_appearance_mode("light")` **fijo en v1** (tokens igual se definen como tuplas `(claro, oscuro)` para que un dark mode futuro sea una segunda capa de mapeo, no un rediseño).
 - `set_default_color_theme("blue")` (base; nuestros tokens pisan lo visible).
 - Estructura: sidebar izquierdo fijo de **220 px** + área de contenido. Contenido con padding 24 y header de pantalla (título 22 bold a la izquierda; acciones primarias a la derecha).

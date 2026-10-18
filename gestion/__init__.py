@@ -1,4 +1,4 @@
-"""Gestión de departamentos — paquete raíz.
+"""Brickly — Gestión de departamentos.
 
 Capas (ver docs/adr/0001-arquitectura-de-capas.md):
 dominio → aplicacion → infraestructura / ui, con dependencias hacia adentro.

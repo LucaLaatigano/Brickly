@@ -1,4 +1,4 @@
-# AGENTS.md — app de departamentos
+# AGENTS.md — Brickly
 
 App de escritorio (Python + SQLite + CustomTkinter) para administrar
 departamentos: cuotas, mora por atraso y ajuste trimestral por IPC.
@@ -125,7 +125,7 @@ H0, H1, H2, H3 y H4 implementados (2026-10-16):
   recién ahí se borra `docs/arranque-h0.md`.
 - Empaquetado: `dist\GestionDepartamentos.exe` reconstruido (2026-10-16) con
   `GestionDepartamentos.spec`; verificado el arranque real del binario
-  (ventana "Gestión de Departamentos") y las pantallas H4 con un build
+  (ventana "Brickly") y las pantallas H4 con un build
   temporal del mismo spec dentro del entorno congelado (smoke de Panel,
   Informes, Configuración, Ajustes IPC y navegación con contexto).
 
