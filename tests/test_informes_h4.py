@@ -10,26 +10,26 @@ from pathlib import Path
 
 import pytest
 
-from gestion.aplicacion.cobranzas import ServicioCobranzas
-from gestion.aplicacion.configuracion import ServicioConfiguracion
-from gestion.aplicacion.departamentos import (
+from brickly.aplicacion.cobranzas import ServicioCobranzas
+from brickly.aplicacion.configuracion import ServicioConfiguracion
+from brickly.aplicacion.departamentos import (
     DatosContrato,
     DatosDepartamento,
     ServicioDepartamentos,
 )
-from gestion.aplicacion.informes import ServicioInformes
-from gestion.dominio.errores import ErrorDeNegocio
-from gestion.infraestructura.archivos import EscritorArchivosSistema, RespaldadorSQLite
-from gestion.infraestructura.db.conexion import abrir_conexion
-from gestion.infraestructura.db.migrador import migrar
-from gestion.infraestructura.db.repositorios.cobranzas import RepositorioCobranzasSQLite
-from gestion.infraestructura.db.repositorios.configuracion import (
+from brickly.aplicacion.informes import ServicioInformes
+from brickly.dominio.errores import ErrorDeNegocio
+from brickly.infraestructura.archivos import EscritorArchivosSistema, RespaldadorSQLite
+from brickly.infraestructura.db.conexion import abrir_conexion
+from brickly.infraestructura.db.migrador import migrar
+from brickly.infraestructura.db.repositorios.cobranzas import RepositorioCobranzasSQLite
+from brickly.infraestructura.db.repositorios.configuracion import (
     RepositorioConfiguracionSQLite,
 )
-from gestion.infraestructura.db.repositorios.departamentos import (
+from brickly.infraestructura.db.repositorios.departamentos import (
     RepositorioDepartamentosSQLite,
 )
-from gestion.infraestructura.db.repositorios.informes import RepositorioInformesSQLite
+from brickly.infraestructura.db.repositorios.informes import RepositorioInformesSQLite
 
 HOY = date(2026, 10, 15)
 

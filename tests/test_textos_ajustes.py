@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from gestion.aplicacion.ajustes import (
+from brickly.aplicacion.ajustes import (
     AjustePendiente,
     AjustesPorAplicar,
     ContratoParaAjuste,
@@ -12,9 +12,9 @@ from gestion.aplicacion.ajustes import (
     ResultadoAjustes,
     ServicioAjustesIpc,
 )
-from gestion.aplicacion.contenedor import Servicios
-from gestion.ui.presenters.ajuste import PresenterAjustes
-from gestion.ui.vistas.ajustes_ipc import (
+from brickly.aplicacion.contenedor import Servicios
+from brickly.ui.presenters.ajuste import PresenterAjustes
+from brickly.ui.vistas.ajustes_ipc import (
     anios_disponibles,
     texto_detalle_meses,
     texto_estado_por_aplicar,
@@ -268,3 +268,140 @@ class TestPresenterAjustes:
         assert fila.meses_base == "jul–sep 2026"
         assert fila.cuota_transicion == "$ 12.800 → $ 14.013,44"
         assert fila.motivo_override == "Pactado 8 % en contrato"
+
+
+class TestTextosH6Indec:
+    def test_formatear_indice_milesimos(self):
+        from brickly.ui.presenters.ajuste import formatear_indice_milesimos
+
+        assert formatear_indice_milesimos(12_514_151) == "12.514,151"
+        assert formatear_indice_milesimos(100_000) == "100,000"
+
+    def test_origen_api_se_muestra_como_indec(self):
+        repo = RepositorioFalso()
+        repo._ipc.append(
+            RegistroIpc(
+                id=4,
+                anio=2026,
+                mes=10,
+                variacion_bp=193,
+                origen="api",
+                cargado_en=date(2026, 11, 3),
+                indice_milesimos=12_514_151,
+            )
+        )
+        servicios = Servicios(
+            departamentos=None,
+            ajustes=ServicioAjustesIpc(repo, RelojFijo()),
+        )
+        filas = PresenterAjustes(servicios).filas_ipc()
+        assert filas[-1].origen == "INDEC"
+
+    def test_textos_fuente_y_preview_indec(self):
+        from brickly.aplicacion.sincronizacion_ipc import (
+            EstadoTokenIpc,
+            ItemPreviewIpc,
+            PreviewSincronizacionIpc,
+            ResultadoPruebaIpc,
+            ResultadoSincronizacionIpc,
+        )
+        from brickly.ui.vistas.ajustes_ipc import (
+            texto_confirmar_reemplazo_manuales,
+            texto_exito_sincronizacion_indec,
+            texto_fuente_indec,
+            texto_resumen_preview_indec,
+        )
+        from brickly.ui.vistas.configuracion import (
+            texto_estado_token_indec,
+            texto_resultado_prueba_indec,
+        )
+
+        sin_token = EstadoTokenIpc(
+            configurado=False,
+            token_enmascarado=None,
+            fecha_emision=None,
+            fecha_vencimiento=None,
+            vencido=False,
+            dias_restantes=None,
+            ultima_sincronizacion=None,
+            motivo_deshabilitado=(
+                "Configurá el token de INDEC en Configuración para sincronizar."
+            ),
+        )
+        assert texto_estado_token_indec(sin_token) == "Estado: Sin configurar"
+        assert (
+            texto_fuente_indec(sin_token)
+            == "Fuente: INDEC · Configurá el token de INDEC en Configuración para sincronizar."
+        )
+
+        activo = EstadoTokenIpc(
+            configurado=True,
+            token_enmascarado="eyJh••••••vpwM",
+            fecha_emision=date(2026, 11, 3),
+            fecha_vencimiento=date(2027, 5, 2),
+            vencido=False,
+            dias_restantes=180,
+            ultima_sincronizacion=date(2026, 11, 3),
+            motivo_deshabilitado=None,
+        )
+        assert (
+            texto_estado_token_indec(activo)
+            == "Estado: Configurado (eyJh••••••vpwM) · Vence el 02/05/2027 · Última sincronización: 03/11/2026"
+        )
+        assert (
+            texto_fuente_indec(activo)
+            == "Fuente: INDEC · Última sincronización: 03/11/2026"
+        )
+
+        preview = PreviewSincronizacionIpc(
+            fecha_consulta=date(2026, 11, 3),
+            items=(
+                ItemPreviewIpc(
+                    anio=2026,
+                    mes=9,
+                    variacion_bp=193,
+                    indice_milesimos=12_514_151,
+                    variacion_actual_bp=None,
+                    origen_actual=None,
+                    estado="nuevo",
+                    seleccionado_por_defecto=True,
+                ),
+                ItemPreviewIpc(
+                    anio=2026,
+                    mes=8,
+                    variacion_bp=166,
+                    indice_milesimos=12_277_386,
+                    variacion_actual_bp=200,
+                    origen_actual="manual",
+                    estado="manual_protegido",
+                    seleccionado_por_defecto=False,
+                ),
+            ),
+        )
+        assert (
+            texto_resumen_preview_indec(preview)
+            == "1 nuevo · 1 manual protegido"
+        )
+        assert "1 período" in texto_confirmar_reemplazo_manuales(1)
+        assert "2 períodos" in texto_confirmar_reemplazo_manuales(2)
+
+        exito = ResultadoSincronizacionIpc(
+            nuevos=2, actualizados=1, reemplazados_manuales=0, omitidos=5
+        )
+        assert (
+            texto_exito_sincronizacion_indec(exito)
+            == "Sincronización con INDEC completada: 2 nuevos, 1 actualizado."
+        )
+
+        prueba = ResultadoPruebaIpc(
+            ok=True,
+            mensaje="Conexión verificada con INDEC.",
+            ultimo_periodo=(2026, 9),
+            ultima_variacion_bp=193,
+            fecha_vencimiento=date(2027, 5, 2),
+        )
+        assert (
+            texto_resultado_prueba_indec(prueba)
+            == "Conexión verificada con INDEC. Último período: septiembre 2026 (1,93 %)."
+        )
+

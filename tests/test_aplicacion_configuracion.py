@@ -4,12 +4,12 @@ from datetime import date
 
 import pytest
 
-from gestion.aplicacion.configuracion import (
+from brickly.aplicacion.configuracion import (
     REDONDEO_CIEN_PESOS,
     DatosConfiguracion,
     ServicioConfiguracion,
 )
-from gestion.dominio.errores import ErrorDeValidacion
+from brickly.dominio.errores import ErrorDeValidacion
 
 
 class RelojFijo:

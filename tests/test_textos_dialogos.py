@@ -1,7 +1,7 @@
 """Textos del diálogo de borrado (§2.7: la consecuencia, explícita)."""
 
-from gestion.aplicacion.departamentos import DependenciasDepartamento
-from gestion.ui.vistas.departamentos import consecuencia_de_borrado
+from brickly.aplicacion.departamentos import DependenciasDepartamento
+from brickly.ui.vistas.departamentos import consecuencia_de_borrado
 
 
 def test_sin_movimientos_no_agrega_frase():

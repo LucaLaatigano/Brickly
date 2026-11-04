@@ -6,7 +6,7 @@ cuando exista un dark mode real.
 
 import pytest
 
-from gestion.ui import estilo
+from brickly.ui import estilo
 
 # (nombre, token texto, token fondo) — todos en modo claro.
 PARES = [

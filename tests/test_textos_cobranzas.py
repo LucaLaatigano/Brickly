@@ -1,11 +1,11 @@
 """Textos exactos de la pantalla Cobranzas (spec §3.4 y §4 F2)."""
 
-from gestion.aplicacion.cobranzas import (
+from brickly.aplicacion.cobranzas import (
     PreviewGeneracionCuotas,
     ResultadoGeneracionCuotas,
     ResumenCobranzasMes,
 )
-from gestion.ui.vistas.cobranzas import (
+from brickly.ui.vistas.cobranzas import (
     avanzar_periodo,
     texto_mes_al_dia,
     texto_preview_generacion,
@@ -126,7 +126,7 @@ def test_avanzar_periodo_cruza_fin_de_anio():
 
 
 def test_evaluar_monto_pago_en_vivo():
-    from gestion.ui.vistas.cobranzas import evaluar_monto_pago
+    from brickly.ui.vistas.cobranzas import evaluar_monto_pago
 
     total = 1_433_600  # $ 14.336
 
@@ -156,8 +156,8 @@ def test_evaluar_monto_pago_en_vivo():
 def test_textos_panel_pago_y_banners():
     from datetime import date
 
-    from gestion.aplicacion.cobranzas import DetalleCuotaParaPago, ResultadoPago
-    from gestion.ui.vistas.cobranzas import (
+    from brickly.aplicacion.cobranzas import DetalleCuotaParaPago, ResultadoPago
+    from brickly.ui.vistas.cobranzas import (
         texto_error_pago,
         texto_exito_pago,
         texto_vencimiento_pago,

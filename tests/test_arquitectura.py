@@ -18,26 +18,32 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[1]  # corre desde donde corre
 
 PROHIBIDOS = {
-    "gestion/dominio": (
+    "brickly/dominio": (
         "sqlite3",
         "customtkinter",
-        "gestion.aplicacion",
-        "gestion.infraestructura",
-        "gestion.ui",
+        "openpyxl",
+        "reportlab",
+        "brickly.aplicacion",
+        "brickly.infraestructura",
+        "brickly.ui",
     ),
-    "gestion/aplicacion": (
+    "brickly/aplicacion": (
         "sqlite3",
         "customtkinter",
-        "gestion.infraestructura",
-        "gestion.ui",
+        "openpyxl",
+        "reportlab",
+        "brickly.infraestructura",
+        "brickly.ui",
     ),
-    "gestion/ui": (
+    "brickly/ui": (
         "sqlite3",
-        "gestion.infraestructura",
+        "openpyxl",
+        "reportlab",
+        "brickly.infraestructura",
     ),
-    "gestion/infraestructura": (
+    "brickly/infraestructura": (
         "customtkinter",
-        "gestion.ui",
+        "brickly.ui",
     ),
 }
 

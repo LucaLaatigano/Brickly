@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 RAIZ = Path(__file__).resolve().parents[1]
-SQL_0001 = RAIZ / "gestion" / "infraestructura" / "db" / "migraciones" / "0001_inicial.sql"
+SQL_0001 = RAIZ / "brickly" / "infraestructura" / "db" / "migraciones" / "0001_inicial.sql"
 
 TABLAS_ESPERADAS = {
     "ajustes",

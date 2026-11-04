@@ -4,8 +4,8 @@ from datetime import date
 
 import pytest
 
-from gestion.dominio.contrato import Contrato, Inquilino, sumar_meses
-from gestion.dominio.cuota import (
+from brickly.dominio.contrato import Contrato, Inquilino, sumar_meses
+from brickly.dominio.cuota import (
     Cuota,
     calcular_mora_cuota,
     dias_atraso_cuota,
@@ -13,8 +13,8 @@ from gestion.dominio.cuota import (
     fecha_vencimiento_cuota,
     saldo_capital_cuota,
 )
-from gestion.dominio.errores import ErrorDeNegocio, ErrorDeValidacion
-from gestion.dominio.pago import (
+from brickly.dominio.errores import ErrorDeNegocio, ErrorDeValidacion
+from brickly.dominio.pago import (
     CuotaImputable,
     Pago,
     imputar_pago_a_cuota,

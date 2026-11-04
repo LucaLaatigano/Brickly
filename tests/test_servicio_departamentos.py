@@ -2,13 +2,13 @@
 
 import pytest
 
-from gestion.aplicacion.departamentos import (
+from brickly.aplicacion.departamentos import (
     DatosDepartamento,
     DependenciasDepartamento,
     FilaDepartamento,
     ServicioDepartamentos,
 )
-from gestion.dominio.errores import ErrorDeNegocio, ErrorDeValidacion
+from brickly.dominio.errores import ErrorDeNegocio, ErrorDeValidacion
 
 
 class RepoFalso:

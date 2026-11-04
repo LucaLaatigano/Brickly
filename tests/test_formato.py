@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from gestion.ui.formato import (
+from brickly.ui.formato import (
     formatear_dias,
     formatear_fecha,
     formatear_mes_abreviado,

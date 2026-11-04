@@ -4,15 +4,15 @@ from datetime import date
 
 import pytest
 
-from gestion.aplicacion.cobranzas import ServicioCobranzas
-from gestion.aplicacion.departamentos import DatosContrato, ServicioDepartamentos
-from gestion.dominio.departamento import Departamento
-from gestion.infraestructura.db.conexion import abrir_conexion
-from gestion.infraestructura.db.migrador import migrar
-from gestion.infraestructura.db.repositorios.cobranzas import (
+from brickly.aplicacion.cobranzas import ServicioCobranzas
+from brickly.aplicacion.departamentos import DatosContrato, ServicioDepartamentos
+from brickly.dominio.departamento import Departamento
+from brickly.infraestructura.db.conexion import abrir_conexion
+from brickly.infraestructura.db.migrador import migrar
+from brickly.infraestructura.db.repositorios.cobranzas import (
     RepositorioCobranzasSQLite,
 )
-from gestion.infraestructura.db.repositorios.departamentos import (
+from brickly.infraestructura.db.repositorios.departamentos import (
     RepositorioDepartamentosSQLite,
 )
 
@@ -307,8 +307,8 @@ class TestAtrasosMoraYPagosH2:
         assert serv_deptos.detalle(d1).deuda_centavos == deuda_esperada_d1
 
     def test_registrar_pago_parcial_y_total_congela_mora_y_actualiza_deuda(self, entorno):
-        from gestion.aplicacion.cobranzas import DatosPago
-        from gestion.dominio.errores import ErrorDeNegocio
+        from brickly.aplicacion.cobranzas import DatosPago
+        from brickly.dominio.errores import ErrorDeNegocio
 
         _con, reloj, repo_deptos, serv_deptos, serv_cobranzas = entorno
         reloj.fecha = date(2026, 10, 22)

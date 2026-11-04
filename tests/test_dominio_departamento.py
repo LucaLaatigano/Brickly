@@ -2,8 +2,8 @@
 
 import pytest
 
-from gestion.dominio.departamento import Departamento, nombre_unidad
-from gestion.dominio.errores import ErrorDeValidacion
+from brickly.dominio.departamento import Departamento, nombre_unidad
+from brickly.dominio.errores import ErrorDeValidacion
 
 
 class TestValidacion:

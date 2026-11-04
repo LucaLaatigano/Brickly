@@ -28,7 +28,7 @@
   - Ítem activo: fondo `SUPERFICIE` + texto `TEXTO` bold. Hover: `SUPERFICIE_2`. El título de cada pantalla coincide exactamente con el ítem del nav (el usuario siempre sabe dónde está).
 - Nav → contenido: las vistas se montan y desmontan en el área de contenido (`for w in contenido.winfo_children(): w.destroy()` + montar la nueva). Sin `CTkTabview` para navegación principal.
 
-### 1.3 Tokens (`gestion/ui/estilo.py`)
+### 1.3 Tokens (`brickly/ui/estilo.py`)
 
 Colores semánticos (rol, no valor; tupla = claro/oscuro):
 
@@ -68,7 +68,7 @@ Botones (alturas: primario/secundario 36, dentro de filas de tabla 32; targets �
 - **Secundario**: `fg_color=SUPERFICIE`, borde 1 `BORDE`, texto `TEXTO`, hover `SUPERFICIE_2`.
 - **Peligro**: se usa en texto y chips (deuda, vencida); no hay botones rojos sueltos en pantalla. Las confirmaciones destructivas van por diálogo nativo con su ícono de advertencia.
 
-### 1.4 Formatos (argentino — `gestion/ui/formato.py`)
+### 1.4 Formatos (argentino — `brickly/ui/formato.py`)
 
 | Qué | Formato | Ejemplo |
 |---|---|---|
@@ -91,7 +91,7 @@ Parseo de entrada (montos y %): aceptar `12800`, `12.800`, `12.800,50`; error in
 
 ---
 
-## 2. Componentes (spec de implementación — `gestion/ui/componentes/`)
+## 2. Componentes (spec de implementación — `brickly/ui/componentes/`)
 
 ### 2.1 `tarjeta.py` — Card
 `CTkFrame(fg_color=SUPERFICIE, corner_radius=10, border_width=1, border_color=BORDE)` + padding interno 16. Título opcional (`FUENTE_SECCION`) + contenido.
@@ -278,6 +278,10 @@ Header: `Cobranzas` + navegador de mes `◀ octubre 2026 ▶` (en Atrasos el nav
 - Al confirmar: se llama al caso de uso `registrar_pago`; éxito → banner "Pago registrado: $ 14.336 · Rivadavia 3421 · 3º B", tabla se refresca, panel se cierra y la fila cobrada desaparece del filtro activo. Error → banner `error` "No se pudo registrar: {detalle}. No se modificó nada." + el panel queda abierto con los datos intactos (jamás perder input).
 - Pago parcial permitido (FIFO lo maneja el dominio); el panel no decide imputación.
 - **Estados:** sin vencidas → "No hay cuotas vencidas." · mes futuro (navegación) → mismo flujo que mes sin generar · todas pagadas → "Octubre al día: 36 de 36 cobradas." · error de pago (arriba).
+- **Constancia de pago (H8):** click en una cuota `Pagada` abre
+  `PanelConstancia` (380 px) con la vista previa y `[ Generar PDF ]`; el
+  período se elige con el navegador de la pantalla. Solo cuotas pagadas; el
+  PDF lleva bloque de firma del propietario/a o administrador/a.
 
 **Criterios de aceptación:**
 - [ ] Generar cuotas es idempotente (dos clics ≠ cuotas duplicadas) y reporta cuántas se generaron y cuántas unidades quedaron afuera (sin contrato).
@@ -285,6 +289,7 @@ Header: `Cobranzas` + navegador de mes `◀ octubre 2026 ▶` (en Atrasos el nav
 - [ ] Monto mayor al total bloquea; monto menor avisa sin bloquear.
 - [ ] Enter confirma el pago; Esc cierra el panel sin guardar.
 - [ ] Tras confirmar, los filtros y la búsqueda se mantienen (no se resetea el contexto).
+- [ ] La constancia solo se genera para cuotas pagadas y muestra la firma del propietario/a o administrador/a.
 
 ### 3.5 Ajustes IPC
 
@@ -335,7 +340,7 @@ Header: `Cobranzas` + navegador de mes `◀ octubre 2026 ▶` (en Atrasos el nav
 
 **Objetivo:** predeterminados y datos de la instalación. Cards:
 - **Predeterminados de contrato:** día de vencimiento (1–28, default 10) · días de gracia (default 5) · tasa de mora mensual % (default 2,0) · redondeo de cuota (`Centavos` / `$ 100`). Cada campo con su ayuda de una línea ("Se usa al crear contratos nuevos; cada contrato puede pisarlo").
-- **Datos del administrador:** nombre, teléfono, email (para recibos/exportaciones futuras).
+- **Datos del administrador:** nombre, teléfono, email (para constancias de pago y exportaciones).
 - **Datos y respaldo:** ruta de la base (solo lectura, con `Abrir carpeta`) · recordatorio de respaldo (14 días) · botón `Hacer respaldo ahora`.
 - **Acerca de:** versión + fecha de build.
 - Guardado explícito: `[ Guardar cambios ]` (primario) → banner `éxito`. Validación inline (día fuera de rango, tasa no numérica). **Estados:** guardado · errores inline · error de escritura → banner con detalle.
@@ -378,10 +383,10 @@ Header: `Cobranzas` + navegador de mes `◀ octubre 2026 ▶` (en Atrasos el nav
 
 ## 6. Qué tiene que hacer senior-dev
 
-### 6.1 Archivos a crear (dentro de `gestion/ui/`, sin tocar la arquitectura)
+### 6.1 Archivos a crear (dentro de `brickly/ui/`, sin tocar la arquitectura)
 
 ```
-gestion/ui/
+brickly/ui/
 ├─ ventana.py            # shell: sidebar + navegación + montaje de vistas. Recibe los servicios por constructor.
 ├─ estilo.py             # tokens de §1.3 + CTkFont compartidos + set_appearance_mode("light")
 ├─ formato.py            # §1.4: monto, fecha, período, porcentaje, parseo
@@ -406,7 +411,7 @@ gestion/ui/
 
 ### 6.2 Reglas duras (el test de arquitectura ya las vigila)
 
-1. `gestion/ui` **no importa** `sqlite3`, ni `gestion.infraestructura`, ni `gestion.dominio` para calcular: los números vienen de **casos de uso** de `aplicacion` (inyectados desde `main.py`).
+1. `brickly/ui` **no importa** `sqlite3`, ni `brickly.infraestructura`, ni `brickly.dominio` para calcular: los números vienen de **casos de uso** de `aplicacion` (inyectados desde `main.py`).
 2. La UI **no calcula mora, ni IPC, ni saldos**. Solo formatea con `formato.py`.
 3. Todo dato que se muestra salió de una llamada a un servicio — los `presenters` agrupan las consultas por pantalla (una llamada por tabla, no N).
 4. `place()` prohibido; listas largas con `CTkScrollableFrame`; refrescos por reconstrucción.
@@ -466,7 +471,7 @@ Las 4 preguntas del plan del EM quedaron definidas y confirmadas por el usuario 
 3. **Día de vencimiento:** igual cada mes (si cae fin de semana no se corre). No hay corrimiento a día hábil en v1.
 4. **Mora:** interés simple diario sobre saldo (cuota − pagado), según dominio; se muestra "a hoy" y se congela al cobrar (eso ya es del dominio).
 
-Fuera de alcance de esta especificación (parking lot, no implementar): dark mode toggle · modales themed con `CTkToplevel` · toasts/animaciones · iconografía · recibos PDF/impresión · atajos globales de teclado · paginación "de verdad" (solo la regla de seguridad de §2.4) · multi-ventana.
+Fuera de alcance de esta especificación (parking lot, no implementar): dark mode toggle · modales themed con `CTkToplevel` · toasts/animaciones · iconografía · recibos fiscales/facturación electrónica · firma digital certificada · atajos globales de teclado · paginación "de verdad" (solo la regla de seguridad de §2.4) · multi-ventana.
 
 ---
 

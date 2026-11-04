@@ -1,16 +1,19 @@
-"""Dominio IPC (H3): acumulado compuesto, ventana base, redondeo y override."""
+"""Dominio IPC (H3 y H6): acumulado compuesto, ventana base, redondeo, índice INDEC y override."""
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
-from gestion.dominio.errores import ErrorDeValidacion
-from gestion.dominio.ipc import (
+from brickly.dominio.errores import ErrorDeValidacion
+from brickly.dominio.ipc import (
     AjusteCalculado,
     IpcMensual,
     acumular_variaciones_bp,
     aplicar_variacion,
+    indice_a_milesimos,
     meses_base,
+    variacion_bp_desde_indices,
     variacion_promedio_bp,
 )
 
@@ -108,3 +111,58 @@ class TestPromedioYEntidades:
     def test_override_con_motivo_y_motivo_descartado_sin_override(self):
         assert self._ajuste(es_override=True, motivo_override=" Pactado 8 % ").motivo_override == "Pactado 8 %"
         assert self._ajuste(motivo_override="ignorado").motivo_override is None
+
+    def test_ipc_mensual_indice_milesimos_opcional(self):
+        ipc = IpcMensual(2026, 9, 193, indice_milesimos=12_514_151)
+        assert ipc.indice_milesimos == 12_514_151
+        with pytest.raises(ErrorDeValidacion):
+            IpcMensual(2026, 9, 193, indice_milesimos=0)
+        with pytest.raises(ErrorDeValidacion):
+            IpcMensual(2026, 9, 193, indice_milesimos=True)  # type: ignore[arg-type]
+
+
+class TestIndiceYVariacionDesdeIndices:
+    def test_serie_oficial_indec_2026(self):
+        # jun 2026 -> jul 2026: 11827.1818 -> 12077.4292 = 2,1158... % -> 212 bp
+        assert variacion_bp_desde_indices(
+            Decimal("11827.1818"), Decimal("12077.4292")
+        ) == 212
+        # jul 2026 -> ago 2026: 12077.4292 -> 12277.3863 = 1,6556... % -> 166 bp
+        assert variacion_bp_desde_indices(
+            Decimal("12077.4292"), Decimal("12277.3863")
+        ) == 166
+        # ago 2026 -> sep 2026: 12277.3863 -> 12514.1508 = 1,9284... % -> 193 bp
+        assert variacion_bp_desde_indices(
+            Decimal("12277.3863"), Decimal("12514.1508")
+        ) == 193
+
+    def test_preserva_4_decimales_en_calculo_sin_truncar_a_milesimos(self):
+        # nov 2017: 119.3528 -> 120.9940 = 137,508... bp -> 138 bp (half-up)
+        assert variacion_bp_desde_indices("119.3528", "120.9940") == 138
+
+    def test_redondeo_half_up_exacto_en_empate(self):
+        # +1,005 % exacto (100,0 -> 101,005) -> 100,5 bp -> 101 bp
+        assert variacion_bp_desde_indices(Decimal("100"), Decimal("101.005")) == 101
+        # Deflación: -1,005 % exacto (100,0 -> 98,995) -> -100,5 bp -> -101 bp
+        assert variacion_bp_desde_indices(Decimal("100"), Decimal("98.995")) == -101
+
+    def test_indice_a_milesimos_half_up(self):
+        assert indice_a_milesimos(Decimal("12514.1508")) == 12_514_151
+        assert indice_a_milesimos("100.0") == 100_000
+        assert indice_a_milesimos(100) == 100_000
+        assert indice_a_milesimos(Decimal("100.0005")) == 100_001
+
+    def test_rechaza_float_bool_y_no_positivos(self):
+        with pytest.raises(ErrorDeValidacion):
+            variacion_bp_desde_indices(100.0, 102.0)  # type: ignore[arg-type]
+        with pytest.raises(ErrorDeValidacion):
+            variacion_bp_desde_indices(True, Decimal("102"))  # type: ignore[arg-type]
+        with pytest.raises(ErrorDeValidacion):
+            variacion_bp_desde_indices(Decimal("0"), Decimal("100"))
+        with pytest.raises(ErrorDeValidacion):
+            variacion_bp_desde_indices(Decimal("-10"), Decimal("100"))
+        with pytest.raises(ErrorDeValidacion):
+            indice_a_milesimos(100.5)  # type: ignore[arg-type]
+        with pytest.raises(ErrorDeValidacion):
+            indice_a_milesimos(Decimal("0"))
+

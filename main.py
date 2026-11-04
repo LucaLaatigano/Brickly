@@ -3,46 +3,64 @@
 Acá se instancian las implementaciones concretas y se inyectan hacia adentro,
 en este orden:
 
-    conexión (infra) → migrar → reloj + repositorios (infra)
-    → casos de uso (aplicación) → ventana (ui)
+    migración de datos (infra) → conexión → migrar esquema
+    → reloj + repositorios (infra) → casos de uso (aplicación) → ventana (ui)
 
 Ninguna capa se auto-arma: todo entra por parámetro desde acá, para que la UI
 no conozca la base y el dominio no conozca a nadie.
 """
 
-from gestion.aplicacion.ajustes import ServicioAjustesIpc
-from gestion.aplicacion.cobranzas import ServicioCobranzas
-from gestion.aplicacion.configuracion import ServicioConfiguracion
-from gestion.aplicacion.contenedor import Servicios
-from gestion.aplicacion.departamentos import ServicioDepartamentos
-from gestion.aplicacion.informes import ServicioInformes
-from gestion.infraestructura.archivos import EscritorArchivosSistema, RespaldadorSQLite
-from gestion.infraestructura.db.conexion import abrir_conexion, ruta_base_datos
-from gestion.infraestructura.db.migrador import migrar
-from gestion.infraestructura.db.repositorios.ajustes import RepositorioAjustesSQLite
-from gestion.infraestructura.db.repositorios.cobranzas import (
+from brickly.aplicacion.ajustes import ServicioAjustesIpc
+from brickly.aplicacion.cobranzas import ServicioCobranzas
+from brickly.aplicacion.configuracion import ServicioConfiguracion
+from brickly.aplicacion.constancias import ServicioConstancias
+from brickly.aplicacion.contenedor import Servicios
+from brickly.aplicacion.departamentos import ServicioDepartamentos
+from brickly.aplicacion.informes import ServicioInformes
+from brickly.aplicacion.sincronizacion_ipc import ServicioSincronizacionIpc
+from brickly.infraestructura.archivos import EscritorArchivosSistema, RespaldadorSQLite
+from brickly.infraestructura.credenciales import AlmacenTokenCredencialesWindows
+from brickly.infraestructura.db.conexion import abrir_conexion, ruta_base_datos
+from brickly.infraestructura.db.migracion_datos import migrar_datos_si_hace_falta
+from brickly.infraestructura.db.migrador import migrar
+from brickly.infraestructura.db.repositorios.ajustes import RepositorioAjustesSQLite
+from brickly.infraestructura.db.repositorios.cobranzas import (
     RepositorioCobranzasSQLite,
 )
-from gestion.infraestructura.db.repositorios.configuracion import (
+from brickly.infraestructura.db.repositorios.configuracion import (
     RepositorioConfiguracionSQLite,
 )
-from gestion.infraestructura.db.repositorios.departamentos import (
+from brickly.infraestructura.db.repositorios.constancias import (
+    RepositorioConstanciasSQLite,
+)
+from brickly.infraestructura.db.repositorios.departamentos import (
     RepositorioDepartamentosSQLite,
 )
-from gestion.infraestructura.db.repositorios.informes import RepositorioInformesSQLite
-from gestion.infraestructura.reloj import RelojSistema
-from gestion.ui.ventana import VentanaPrincipal
+from brickly.infraestructura.db.repositorios.informes import RepositorioInformesSQLite
+from brickly.infraestructura.excel import EscritorExcelOpenpyxl
+from brickly.infraestructura.indec import ClienteIndecHttp
+from brickly.infraestructura.pdf import GeneradorPdfReportlab
+from brickly.infraestructura.reloj import RelojSistema
+from brickly.ui.ventana import VentanaPrincipal
 
 
 def main() -> None:
+    try:
+        migrar_datos_si_hace_falta()
+    except OSError as exc:
+        from tkinter import messagebox
+
+        messagebox.showerror("Brickly", str(exc))
+        return
+
     ruta = ruta_base_datos()
     conexion = abrir_conexion(ruta)
     migrar(conexion)
     reloj = RelojSistema()
 
-    configuracion = ServicioConfiguracion(
-        RepositorioConfiguracionSQLite(conexion), reloj
-    )
+    repo_configuracion = RepositorioConfiguracionSQLite(conexion)
+    repo_ajustes = RepositorioAjustesSQLite(conexion)
+    configuracion = ServicioConfiguracion(repo_configuracion, reloj)
     cobranzas = ServicioCobranzas(RepositorioCobranzasSQLite(conexion), reloj=reloj)
 
     servicios = Servicios(
@@ -52,8 +70,15 @@ def main() -> None:
         ),
         cobranzas=cobranzas,
         ajustes=ServicioAjustesIpc(
-            RepositorioAjustesSQLite(conexion),
+            repo_ajustes,
             reloj=reloj,
+        ),
+        sincronizacion_ipc=ServicioSincronizacionIpc(
+            repositorio=repo_ajustes,
+            fuente=ClienteIndecHttp(),
+            almacen_token=AlmacenTokenCredencialesWindows(),
+            reloj=reloj,
+            configuracion=repo_configuracion,
         ),
         informes=ServicioInformes(
             repositorio=RepositorioInformesSQLite(conexion),
@@ -61,6 +86,13 @@ def main() -> None:
             configuracion=configuracion,
             respaldador=RespaldadorSQLite(conexion),
             escritor=EscritorArchivosSistema(),
+            reloj=reloj,
+            escritor_excel=EscritorExcelOpenpyxl(),
+        ),
+        constancias=ServicioConstancias(
+            repositorio=RepositorioConstanciasSQLite(conexion),
+            configuracion=configuracion,
+            generador_pdf=GeneradorPdfReportlab(),
             reloj=reloj,
         ),
         configuracion=configuracion,

@@ -9,21 +9,21 @@ from datetime import date
 
 import pytest
 
-from gestion.aplicacion.cobranzas import (
+from brickly.aplicacion.cobranzas import (
     CobranzasDelMes,
     FilaAtraso,
     FilaCobranzaMes,
     PreviewGeneracionCuotas,
     ResumenCobranzasMes,
 )
-from gestion.aplicacion.informes import (
+from brickly.aplicacion.informes import (
     RegistroEstadoCuenta,
     ServicioInformes,
     csv_cobranzas_del_mes,
     csv_estado_cuenta,
     csv_morosos,
 )
-from gestion.dominio.errores import ErrorDeNegocio
+from brickly.dominio.errores import ErrorDeNegocio
 
 HOY = date(2026, 10, 15)
 

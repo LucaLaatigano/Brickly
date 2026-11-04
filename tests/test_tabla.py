@@ -1,6 +1,6 @@
 """Helpers puros de la tabla (spec §2.4)."""
 
-from gestion.ui.componentes.tabla import truncar
+from brickly.ui.componentes.tabla import truncar
 
 
 def test_no_trunca_cuando_entra():

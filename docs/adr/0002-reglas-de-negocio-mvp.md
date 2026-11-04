@@ -2,7 +2,7 @@
 
 - **Status:** aceptada
 - **Fecha:** 2026-10-15
-- **Aplica a:** `gestion/dominio/`, `gestion/aplicacion/`, `gestion/ui/` (textos y flujos)
+- **Aplica a:** `brickly/dominio/`, `brickly/aplicacion/`, `brickly/ui/` (textos y flujos)
 
 ## Contexto
 

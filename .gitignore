@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Entorno virtual
+.venv/
+
+# Empaquetado
+build/
+dist/
+*.spec.bak
+
+# Datos locales / exports
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+*.csv
+*.xlsx

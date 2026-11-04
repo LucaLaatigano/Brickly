@@ -9,18 +9,18 @@ from datetime import date
 
 import pytest
 
-from gestion.aplicacion.ajustes import AjustePendiente, AjustesPorAplicar, MesBase
-from gestion.aplicacion.cobranzas import (
+from brickly.aplicacion.ajustes import AjustePendiente, AjustesPorAplicar, MesBase
+from brickly.aplicacion.cobranzas import (
     CobranzasDelMes,
     FilaAtraso,
     FilaCobranzaMes,
     PreviewGeneracionCuotas,
     ResumenCobranzasMes,
 )
-from gestion.aplicacion.configuracion import ConfiguracionInstalacion
-from gestion.aplicacion.contenedor import Servicios
-from gestion.aplicacion.departamentos import FilaDepartamento
-from gestion.ui.presenters.panel import (
+from brickly.aplicacion.configuracion import ConfiguracionInstalacion
+from brickly.aplicacion.contenedor import Servicios
+from brickly.aplicacion.departamentos import FilaDepartamento
+from brickly.ui.presenters.panel import (
     DESTINO_AJUSTES,
     DESTINO_COBRANZAS,
     DESTINO_DEPARTAMENTOS,

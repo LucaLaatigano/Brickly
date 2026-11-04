@@ -4,17 +4,17 @@ from datetime import date
 
 import pytest
 
-from gestion.aplicacion.ajustes import DatosAjuste, ServicioAjustesIpc
-from gestion.aplicacion.cobranzas import ServicioCobranzas
-from gestion.aplicacion.departamentos import DatosContrato, ServicioDepartamentos
-from gestion.dominio.departamento import Departamento
-from gestion.dominio.errores import ErrorDeNegocio, ErrorDeValidacion
-from gestion.dominio.ipc import AjusteCalculado
-from gestion.infraestructura.db.conexion import abrir_conexion
-from gestion.infraestructura.db.migrador import migrar
-from gestion.infraestructura.db.repositorios.ajustes import RepositorioAjustesSQLite
-from gestion.infraestructura.db.repositorios.cobranzas import RepositorioCobranzasSQLite
-from gestion.infraestructura.db.repositorios.departamentos import (
+from brickly.aplicacion.ajustes import DatosAjuste, ServicioAjustesIpc
+from brickly.aplicacion.cobranzas import ServicioCobranzas
+from brickly.aplicacion.departamentos import DatosContrato, ServicioDepartamentos
+from brickly.dominio.departamento import Departamento
+from brickly.dominio.errores import ErrorDeNegocio, ErrorDeValidacion
+from brickly.dominio.ipc import AjusteCalculado
+from brickly.infraestructura.db.conexion import abrir_conexion
+from brickly.infraestructura.db.migrador import migrar
+from brickly.infraestructura.db.repositorios.ajustes import RepositorioAjustesSQLite
+from brickly.infraestructura.db.repositorios.cobranzas import RepositorioCobranzasSQLite
+from brickly.infraestructura.db.repositorios.departamentos import (
     RepositorioDepartamentosSQLite,
 )
 

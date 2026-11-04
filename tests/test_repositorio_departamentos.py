@@ -4,11 +4,11 @@ from datetime import date
 
 import pytest
 
-from gestion.dominio.departamento import Departamento
-from gestion.dominio.errores import ErrorDeNegocio
-from gestion.infraestructura.db.conexion import abrir_conexion
-from gestion.infraestructura.db.migrador import migrar
-from gestion.infraestructura.db.repositorios.departamentos import (
+from brickly.dominio.departamento import Departamento
+from brickly.dominio.errores import ErrorDeNegocio
+from brickly.infraestructura.db.conexion import abrir_conexion
+from brickly.infraestructura.db.migrador import migrar
+from brickly.infraestructura.db.repositorios.departamentos import (
     RepositorioDepartamentosSQLite,
 )
 

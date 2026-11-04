@@ -2,7 +2,7 @@
 
 - **Status:** aceptada
 - **Fecha:** 2026-10-15
-- **Aplica a:** `gestion/`, `main.py`, `tests/test_arquitectura.py`
+- **Aplica a:** `brickly/`, `main.py`, `tests/test_arquitectura.py`
 
 ## Drivers
 
@@ -26,18 +26,18 @@ ui ──▶ aplicacion ──▶ dominio
 infraestructura ┘   (implementa los puertos que define aplicacion)
 ```
 
-- `gestion/dominio` — reglas puras (mora, IPC, calendario, dinero). No importa
+- `brickly/dominio` — reglas puras (mora, IPC, calendario, dinero). No importa
   nada del proyecto ni frameworks.
-- `gestion/aplicacion` — casos de uso; define los **puertos** (`puertos.py`,
+- `brickly/aplicacion` — casos de uso; define los **puertos** (`puertos.py`,
   `typing.Protocol`) de lo que necesita del mundo.
-- `gestion/infraestructura` — adaptadores: SQLite tras repositorios, reloj,
+- `brickly/infraestructura` — adaptadores: SQLite tras repositorios, reloj,
   exportadores, futuras integraciones. Implementa los puertos.
-- `gestion/ui` — CustomTkinter. Solo presentación; habla con casos de uso.
+- `brickly/ui` — CustomTkinter. Solo presentación; habla con casos de uso.
 - `main.py` — composition root: el único archivo que conoce todas las capas.
 
 Reglas operativas:
 
-- Todo el SQL vive en `gestion/infraestructura/db/` (conexión, migraciones con
+- Todo el SQL vive en `brickly/infraestructura/db/` (conexión, migraciones con
   `PRAGMA user_version`, repositorios).
 - Montos en **centavos enteros** (`int`); los redondeos son una regla de
   dominio explícita. Nunca floats para plata.
