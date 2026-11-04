@@ -6,6 +6,9 @@ desmontan en el área de contenido al navegar (sin CTkTabview para navegar).
 abre Cobranzas/Atrasos con una cuota y su panel de pago listos (F3).
 """
 
+import sys
+from pathlib import Path
+
 import customtkinter as ctk
 
 from brickly.ui import estilo
@@ -27,12 +30,23 @@ ITEMS_NAV = (
 )
 
 
+def _ruta_icono() -> Path:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+    return base / "brickly-logo.ico"
+
+
 class VentanaPrincipal(ctk.CTk):
     def __init__(self, servicios):
         super().__init__()
         estilo.inicializar()
         self.servicios = servicios
         self.title("Brickly")
+        icono = _ruta_icono()
+        if icono.is_file():
+            try:
+                self.iconbitmap(str(icono))
+            except Exception:
+                pass
         self.configure(fg_color=estilo.FONDO_APP)
         self.minsize(1100, 700)
 

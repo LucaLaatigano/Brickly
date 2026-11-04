@@ -44,7 +44,23 @@ from brickly.infraestructura.reloj import RelojSistema
 from brickly.ui.ventana import VentanaPrincipal
 
 
+import sys
+
+
+def _configurar_id_proceso_windows() -> None:
+    if sys.platform.startswith("win"):
+        try:
+            import ctypes
+
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                "Brickly.App.1"
+            )
+        except Exception:
+            pass
+
+
 def main() -> None:
+    _configurar_id_proceso_windows()
     try:
         migrar_datos_si_hace_falta()
     except OSError as exc:
