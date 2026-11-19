@@ -18,3 +18,7 @@ class ErrorDeValidacion(ErrorDeNegocio):
     def __init__(self, mensaje: str, campo: str | None = None):
         super().__init__(mensaje)
         self.campo = campo
+
+    @property
+    def mensaje(self) -> str:
+        return str(self)

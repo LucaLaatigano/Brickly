@@ -37,6 +37,7 @@ class PasoOnboarding:
     texto: str
     hecho: bool
     destino: str
+    opciones: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,7 @@ class PresenterPanel:
                 "1. Agregá tus departamentos",
                 bool(filas_departamentos),
                 DESTINO_DEPARTAMENTOS,
+                opciones={"modo_inicial": "importar"} if not filas_departamentos else None,
             ),
             PasoOnboarding(
                 "2. Cargá los contratos",

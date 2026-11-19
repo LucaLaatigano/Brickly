@@ -61,13 +61,12 @@ _ETIQUETA_MEDIO = {
     "otro": "Otro",
 }
 
-TITULO_CONSTANCIA = "Constancia de pago"
+TITULO_CONSTANCIA = "Recibo de pago"
 ROL_FIRMA_CONSTANCIA = "Propietario/a o Administrador/a"
 LEYENDA_PIE_CONSTANCIA = (
-    "La presente constancia certifica el pago de la cuota del período "
-    "indicado y no implica que la unidad esté libre de otras obligaciones."
+    "Se recibió el dinero correspondiente al pago del mes indicado."
 )
-LEYENDA_NO_FISCAL = "Documento no válido como factura ni comprobante fiscal."
+LEYENDA_NO_FISCAL = ""
 
 
 @dataclass(frozen=True)
@@ -161,6 +160,12 @@ class ConstanciaPago:
     leyenda_pie: str
     leyenda_no_fiscal: str
     nombre_archivo_sugerido: str
+    firma_imagen: bytes | None = None
+    firma_nombre_archivo: str | None = None
+
+    @property
+    def firma_pdf(self) -> bytes | None:
+        return self.firma_imagen
 
 
 def _formatear_pesos_error(centavos: int) -> str:
@@ -218,6 +223,8 @@ def armar_constancia_pago(
     admin_nombre: str | None = None,
     admin_telefono: str | None = None,
     admin_email: str | None = None,
+    firma_imagen: bytes | None = None,
+    firma_nombre_archivo: str | None = None,
 ) -> ConstanciaPago:
     """Valida que la cuota esté pagada y construye el DTO `ConstanciaPago`."""
     estado = estado_cuota(
@@ -274,6 +281,12 @@ def armar_constancia_pago(
     firma_nombre, firma_rol = resolver_firma_constancia(
         registro.propietario, admin_nombre
     )
+    firma_bytes = bytes(firma_imagen) if firma_imagen else None
+    firma_archivo = (
+        ((firma_nombre_archivo or "").strip() or None)
+        if firma_bytes is not None
+        else None
+    )
 
     return ConstanciaPago(
         cuota_id=registro.cuota_id,
@@ -301,6 +314,8 @@ def armar_constancia_pago(
         nombre_archivo_sugerido=nombre_archivo_constancia(
             unidad, registro.anio, registro.mes
         ),
+        firma_imagen=firma_bytes,
+        firma_nombre_archivo=firma_archivo,
     )
 
 
@@ -331,12 +346,17 @@ class ServicioConstancias:
         if registro is None:
             raise ErrorDeNegocio("La cuota indicada no existe.")
         cfg = self._configuracion.cargar()
+        firma = self._configuracion.obtener_firma()
         return armar_constancia_pago(
             registro,
             hoy=self._reloj.hoy(),
             admin_nombre=cfg.admin_nombre,
             admin_telefono=cfg.admin_telefono,
             admin_email=cfg.admin_email,
+            firma_imagen=firma.contenido if firma is not None else None,
+            firma_nombre_archivo=(
+                firma.nombre_archivo if firma is not None else None
+            ),
         )
 
     def generar(self, cuota_id: int, ruta: Path | str) -> ConstanciaPago:
@@ -344,3 +364,4 @@ class ServicioConstancias:
         constancia = self.obtener(cuota_id)
         self._generador_pdf.generar(constancia, ruta)
         return constancia
+

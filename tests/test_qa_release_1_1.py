@@ -503,14 +503,360 @@ def test_qa_h8_bordes_validacion_constancias() -> None:
         conn.close()
 
 
+def test_qa_h8_ciclo_completo_firma_admin_reemplazo_respaldo_y_borrado(
+    tmp_path: Path,
+) -> None:
+    """Ciclo completo sobre SQLite real: subir foto de firma -> generar recibo -> reemplazar firma -> respaldar -> borrar -> generar recibo."""
+    import io
+    from PIL import Image
+
+    ruta_db = tmp_path / "datos.sqlite3"
+    conn = abrir_conexion(ruta_db)
+    migrar(conn)
+    try:
+        hoy = date(2026, 10, 15)
+        reloj = RelojFijo(hoy)
+        srv_deptos = ServicioDepartamentos(
+            RepositorioDepartamentosSQLite(conn, reloj=reloj), reloj=reloj
+        )
+        srv_cob = ServicioCobranzas(RepositorioCobranzasSQLite(conn), reloj=reloj)
+        srv_cfg = ServicioConfiguracion(
+            RepositorioConfiguracionSQLite(conn), reloj=reloj
+        )
+        srv_const = ServicioConstancias(
+            repositorio=RepositorioConstanciasSQLite(conn),
+            configuracion=srv_cfg,
+            generador_pdf=GeneradorPdfReportlab(),
+            reloj=reloj,
+        )
+
+        depto_id = srv_deptos.crear(
+            DatosDepartamento(
+                direccion="Av. Santa Fe 2140",
+                piso="4",
+                depto="B",
+                m2=55,
+                propietario="Marta Gómez",
+            )
+        )
+        srv_deptos.cargar_contrato(
+            depto_id,
+            DatosContrato(
+                inquilino_nombre="Lucía Peña",
+                fecha_inicio=date(2026, 10, 1),
+                monto_centavos=1280000,
+            ),
+        )
+        srv_cob.generar_cuotas(2026, 10)
+        cuota_id = srv_cob.del_mes(2026, 10).filas[0].cuota_id
+        srv_cob.registrar_pago(
+            DatosPago(
+                cuota_id=cuota_id,
+                fecha=date(2026, 10, 9),
+                monto_centavos=1280000,
+                medio="transferencia",
+                nota="Transferencia CBU",
+            )
+        )
+
+        # 1. Subir foto PNG de firma y generar recibo PDF
+        buf_inicial = io.BytesIO()
+        Image.new("RGBA", (600, 220), (10, 30, 90, 255)).save(buf_inicial, format="PNG")
+        foto_bytes = buf_inicial.getvalue()
+
+        guardada_1 = srv_cfg.guardar_firma("firma-foto.png", foto_bytes)
+        assert guardada_1.nombre_archivo == "firma-foto.png"
+        assert guardada_1.contenido == foto_bytes
+
+        pdf_1 = tmp_path / "recibo-1-foto.pdf"
+        srv_const.generar(cuota_id, pdf_1)
+        bytes_pdf_1 = pdf_1.read_bytes()
+        assert b"Recibo de pago" in bytes_pdf_1
+        assert b"/Subtype /Image" in bytes_pdf_1
+        assert b"Se recibi\\363 el dinero correspondiente al pago del mes indicado." in bytes_pdf_1
+        assert b"no implica que la unidad" not in bytes_pdf_1
+        assert b"comprobante fiscal" not in bytes_pdf_1
+
+        # 2. Reemplazar la firma por una imagen JPEG (240x90)
+        buf_reemplazo = io.BytesIO()
+        Image.new("RGB", (240, 90), (20, 40, 160)).save(buf_reemplazo, format="JPEG")
+        bytes_reemplazo = buf_reemplazo.getvalue()
+
+        guardada_2 = srv_cfg.guardar_firma("firma-nueva.jpg", bytes_reemplazo)
+        assert guardada_2.nombre_archivo == "firma-nueva.jpg"
+        assert guardada_2.contenido == bytes_reemplazo
+        assert conn.execute("SELECT COUNT(*) FROM firma_admin").fetchone()[0] == 1
+
+        pdf_2 = tmp_path / "recibo-2-reemplazada.pdf"
+        srv_const.generar(cuota_id, pdf_2)
+        bytes_pdf_2 = pdf_2.read_bytes()
+        assert b"/Subtype /Image" in bytes_pdf_2
+
+        # Verificar que el respaldo SQLite conserva la tabla firma_admin intacta
+        ruta_backup = tmp_path / "respaldo.sqlite3"
+        RespaldadorSQLite(conn).respaldar(ruta_backup)
+        conn_bak = abrir_conexion(ruta_backup)
+        try:
+            repo_bak = RepositorioConfiguracionSQLite(conn_bak)
+            firma_bak = repo_bak.obtener_firma()
+            assert firma_bak is not None
+            assert firma_bak.nombre_archivo == "firma-nueva.jpg"
+            assert firma_bak.contenido == bytes_reemplazo
+        finally:
+            conn_bak.close()
+
+        # 3. Borrar la firma y volver a generar recibo PDF
+        srv_cfg.borrar_firma()
+        assert srv_cfg.obtener_firma() is None
+        assert conn.execute("SELECT COUNT(*) FROM firma_admin").fetchone()[0] == 0
+
+        pdf_3 = tmp_path / "recibo-3-sin-firma.pdf"
+        srv_const.generar(cuota_id, pdf_3)
+        bytes_pdf_3 = pdf_3.read_bytes()
+        assert b"Recibo de pago" in bytes_pdf_3
+        assert b"/Subtype /Image" not in bytes_pdf_3
+    finally:
+        conn.close()
+
+
+def test_qa_h8_entradas_hostiles_guardar_firma_y_bytes_corruptos_no_crashean(
+    tmp_path: Path,
+) -> None:
+    """Entradas hostiles en guardar_firma e imágenes truncadas/corruptas en base."""
+    import io
+    from PIL import Image
+    from brickly.dominio.errores import ErrorDeValidacion
+    from brickly.infraestructura.pdf import cargar_imagen_firma
+
+    conn = abrir_conexion(":memory:")
+    migrar(conn)
+    try:
+        hoy = date(2026, 10, 15)
+        reloj = RelojFijo(hoy)
+        srv_deptos = ServicioDepartamentos(
+            RepositorioDepartamentosSQLite(conn, reloj=reloj), reloj=reloj
+        )
+        srv_cob = ServicioCobranzas(RepositorioCobranzasSQLite(conn), reloj=reloj)
+        repo_cfg = RepositorioConfiguracionSQLite(conn)
+        srv_cfg = ServicioConfiguracion(repo_cfg, reloj=reloj)
+        srv_const = ServicioConstancias(
+            repositorio=RepositorioConstanciasSQLite(conn),
+            configuracion=srv_cfg,
+            generador_pdf=GeneradorPdfReportlab(),
+            reloj=reloj,
+        )
+
+        buf_valida = io.BytesIO()
+        Image.new("RGB", (100, 40), (0, 0, 0)).save(buf_valida, format="PNG")
+        png_valido = buf_valida.getvalue()
+
+        # Guardar una firma inicial válida y verificar que entradas hostiles no la pisan
+        srv_cfg.guardar_firma("valida.png", png_valido)
+
+        entradas_invalidas = [
+            ("", png_valido),
+            ("   \t\n  ", png_valido),
+            ("firma.png", b""),
+            ("Photo.pdf", b"%PDF-1.4\n%%EOF"),
+            ("firma.png", b"PK\x03\x04archivo-zip-disfrazado"),
+            ("firma.png", None),  # type: ignore[arg-type]
+        ]
+        for nombre_inv, contenido_inv in entradas_invalidas:
+            with pytest.raises(ErrorDeValidacion) as exc_info:
+                srv_cfg.guardar_firma(nombre_inv, contenido_inv)
+            assert exc_info.value.campo == "firma_imagen"
+
+        vigente = srv_cfg.obtener_firma()
+        assert vigente is not None
+        assert vigente.nombre_archivo == "valida.png"
+
+        # Crear cuota pagada para probar generación con cabeceras de imagen truncadas/corruptas
+        depto_id = srv_deptos.crear(
+            DatosDepartamento(
+                direccion="Lavalle 700",
+                piso="1",
+                depto="A",
+                m2=40,
+                propietario="Admin Hostil",
+            )
+        )
+        srv_deptos.cargar_contrato(
+            depto_id,
+            DatosContrato(
+                inquilino_nombre="Inquilino Prueba",
+                fecha_inicio=date(2026, 10, 1),
+                monto_centavos=500000,
+            ),
+        )
+        srv_cob.generar_cuotas(2026, 10)
+        cuota_id = srv_cob.del_mes(2026, 10).filas[0].cuota_id
+        srv_cob.registrar_pago(
+            DatosPago(
+                cuota_id=cuota_id,
+                fecha=date(2026, 10, 10),
+                monto_centavos=500000,
+                medio="efectivo",
+            )
+        )
+
+        imagenes_corruptas = [
+            b"\x89PNG\r\n\x1a\ndatos_corruptos",
+            b"\xff\xd8\xff\xe0datos_jpeg_truncados",
+            b"RIFF\x10\x00\x00\x00WEBPVP8 truncado",
+            b"BM\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+        ]
+        for idx, img_rota in enumerate(imagenes_corruptas):
+            assert cargar_imagen_firma(img_rota) is None
+            # Pasa la validación de cabecera mágica en aplicación, pero degrada limpio al renderizar PDF
+            guardada_rota = srv_cfg.guardar_firma(f"rota-{idx}.png", img_rota)
+            assert guardada_rota.nombre_archivo == f"rota-{idx}.png"
+            salida = tmp_path / f"recibo-rota-{idx}.pdf"
+            srv_const.generar(cuota_id, salida)
+            contenido_out = salida.read_bytes()
+            assert contenido_out.startswith(b"%PDF-")
+            assert b"Recibo de pago" in contenido_out
+            assert b"/Subtype /Image" not in contenido_out
+    finally:
+        conn.close()
+
+
+def test_qa_h8_ui_headless_vista_configuracion_y_panel_constancia(
+    tmp_path: Path,
+) -> None:
+    """Smoke headless de VistaConfiguracion y PanelConstancia con botones y etiquetas de firma."""
+    import io
+    import customtkinter as ctk
+    from PIL import Image
+    from brickly.aplicacion.contenedor import Servicios
+    from brickly.ui import estilo
+    from brickly.ui.presenters.constancia import preparar_constancia
+    from brickly.ui.vistas.cobranzas import PanelConstancia
+    from brickly.ui.vistas.configuracion import VistaConfiguracion
+
+    conn = abrir_conexion(":memory:")
+    migrar(conn)
+    root = ctk.CTk()
+    root.withdraw()
+    estilo.inicializar()
+    try:
+        hoy = date(2026, 10, 15)
+        reloj = RelojFijo(hoy)
+        srv_deptos = ServicioDepartamentos(
+            RepositorioDepartamentosSQLite(conn, reloj=reloj), reloj=reloj
+        )
+        srv_cob = ServicioCobranzas(RepositorioCobranzasSQLite(conn), reloj=reloj)
+        srv_cfg = ServicioConfiguracion(
+            RepositorioConfiguracionSQLite(conn), reloj=reloj
+        )
+        srv_const = ServicioConstancias(
+            repositorio=RepositorioConstanciasSQLite(conn),
+            configuracion=srv_cfg,
+            generador_pdf=GeneradorPdfReportlab(),
+            reloj=reloj,
+        )
+        servicios = Servicios(
+            departamentos=srv_deptos,
+            cobranzas=srv_cob,
+            configuracion=srv_cfg,
+            constancias=srv_const,
+        )
+
+        depto_id = srv_deptos.crear(
+            DatosDepartamento(
+                direccion="Santa Fe 1000",
+                piso="2",
+                depto="A",
+                m2=50,
+                propietario="Marta Gómez",
+            )
+        )
+        srv_deptos.cargar_contrato(
+            depto_id,
+            DatosContrato(
+                inquilino_nombre="Lucía Peña",
+                fecha_inicio=date(2026, 10, 1),
+                monto_centavos=1280000,
+            ),
+        )
+        srv_cob.generar_cuotas(2026, 10)
+        cuota_id = srv_cob.del_mes(2026, 10).filas[0].cuota_id
+        srv_cob.registrar_pago(
+            DatosPago(
+                cuota_id=cuota_id,
+                fecha=date(2026, 10, 9),
+                monto_centavos=1280000,
+                medio="transferencia",
+            )
+        )
+
+        vista_cfg = VistaConfiguracion(root, servicios)
+        assert vista_cfg._boton_subir_firma is not None
+        assert vista_cfg._boton_quitar_firma is not None
+        assert vista_cfg._label_estado_firma is not None
+        assert vista_cfg._boton_subir_firma.cget("text") == "Subir firma (foto)"
+        assert vista_cfg._boton_quitar_firma.cget("text") == "Quitar firma"
+        assert vista_cfg._boton_quitar_firma.cget("state") == "disabled"
+        assert vista_cfg._label_estado_firma.cget("text") == "Firma (foto): Sin cargar"
+
+        # Subir foto de firma desde la vista
+        ruta_foto = tmp_path / "firma-admin.png"
+        buf_foto = io.BytesIO()
+        Image.new("RGBA", (220, 80), (15, 25, 80, 255)).save(buf_foto, format="PNG")
+        ruta_foto.write_bytes(buf_foto.getvalue())
+
+        vista_cfg._subir_firma(ruta_foto)
+        assert vista_cfg._label_estado_firma.cget("text") == "Firma (foto): firma-admin.png"
+        assert vista_cfg._boton_quitar_firma.cget("state") == "normal"
+
+        # Intentar subir un archivo inválido (PDF o texto) desde la vista -> mantiene firma-admin.png
+        archivo_invalido = tmp_path / "invalido.pdf"
+        archivo_invalido.write_bytes(b"%PDF-1.4 no permitido")
+        vista_cfg._subir_firma(archivo_invalido)
+        assert vista_cfg._label_estado_firma.cget("text") == "Firma (foto): firma-admin.png"
+        assert srv_cfg.obtener_firma() is not None
+
+        # Instanciar PanelConstancia y generar recibo
+        const_pres = preparar_constancia(servicios, cuota_id)
+        assert const_pres.titulo == "Recibo de pago"
+        assert const_pres.tiene_firma_imagen is True
+        assert const_pres.firma_nombre_archivo == "firma-admin.png"
+
+        generados: list[str] = []
+        errores: list[str] = []
+        panel = PanelConstancia(
+            root,
+            servicios,
+            const_pres,
+            al_generado=generados.append,
+            al_error=errores.append,
+            al_cerrar=lambda: None,
+        )
+        salida_pdf = tmp_path / "recibo-ui.pdf"
+        panel._generar_pdf(str(salida_pdf))
+        assert errores == []
+        assert generados == [str(salida_pdf)]
+        assert b"/Subtype /Image" in salida_pdf.read_bytes()
+
+        # Quitar firma desde la vista
+        vista_cfg._quitar_firma()
+        assert vista_cfg._label_estado_firma.cget("text") == "Firma (foto): Sin cargar"
+        assert vista_cfg._boton_quitar_firma.cget("state") == "disabled"
+        assert srv_cfg.obtener_firma() is None
+    finally:
+        root.destroy()
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
-# 5. Artefactos de Release 1.1.0 (dist\Brickly.exe, SHA256.txt y PDF ejemplo)
+# 5. Artefactos de Release 1.2.0 (dist\Brickly.exe, SHA256.txt y PDF ejemplo)
 # ---------------------------------------------------------------------------
 
 
-def test_qa_release_1_1_artefactos_y_hash() -> None:
-    assert VERSION == "1.1.0"
-    assert FECHA_BUILD == "2026-11-04"
+def test_qa_release_1_2_artefactos_y_hash() -> None:
+    from PyInstaller.archive.readers import CArchiveReader
+
+    assert VERSION == "1.2.0"
+    assert FECHA_BUILD == "2026-11-19"
 
     exe_path = RAIZ / "dist" / "Brickly.exe"
     sha_path = RAIZ / "dist" / "SHA256.txt"
@@ -528,10 +874,29 @@ def test_qa_release_1_1_artefactos_y_hash() -> None:
         f"El hash en SHA256.txt ({texto_sha}) no coincide con Brickly.exe ({sha_real})"
     )
 
+    # Verificar que 0003_firma_admin.sql esté empaquetada dentro de dist\Brickly.exe
+    lector_exe = CArchiveReader(str(exe_path))
+    clave_0003 = "brickly\\infraestructura\\db\\migraciones\\0003_firma_admin.sql"
+    assert clave_0003 in lector_exe.toc, (
+        "La migración 0003_firma_admin.sql no está empaquetada en dist\\Brickly.exe"
+    )
+    sql_empaquetado = lector_exe.extract(clave_0003)
+    assert b"CREATE TABLE firma_admin" in sql_empaquetado
+
+    # Verificar que .gitignore excluya Photo.pdf y photo.pdf
+    gitignore = (RAIZ / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "photo.pdf" in gitignore
+    assert "Photo.pdf" in gitignore
+
     assert pdf_ejemplo.is_file(), "Falta el PDF de ejemplo en dist\\"
     pdf_bytes = pdf_ejemplo.read_bytes()
     assert pdf_bytes.startswith(b"%PDF-")
-    assert b"Constancia de pago" in pdf_bytes
+    assert b"Recibo de pago" in pdf_bytes
+    assert b"/Subtype /Image" in pdf_bytes
     assert b"Propietario/a o Administrador/a" in pdf_bytes
-    assert b"Documento no v\\341lido como factura ni comprobante fiscal." in pdf_bytes
+    assert b"correspondiente al pago del mes indicado." in pdf_bytes
+    assert b"no implica que la unidad" not in pdf_bytes
+    assert b"comprobante fiscal" not in pdf_bytes
     assert b"Luc\\355a Pe\\361a" in pdf_bytes  # Lucía Peña con í (\355) y ñ (\361) en WinAnsi
+
+

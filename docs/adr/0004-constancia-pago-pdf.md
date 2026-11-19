@@ -31,10 +31,10 @@ Necesitamos definir:
   una imputación registrada). Si una cuota está `pendiente`, `parcial` o `vencida`,
   `ServicioConstancias` rechaza la operación indicando el motivo y el saldo de
   capital pendiente.
-- **Sin migración ni escrituras:** el PDF se construye en el momento leyendo las
+- **Sin escrituras al emitir:** el PDF se construye en el momento leyendo las
   tablas existentes (`cuotas`, `contratos`, `departamentos`, `inquilinos`, `pagos`,
-  `imputaciones`, `configuracion`). Repetir la generación es 100 % idempotente y no
-  registra emisiones ni altera datos.
+  `imputaciones`, `configuracion`, `firma_admin`). Repetir la generación es 100 %
+  idempotente y no registra emisiones ni altera datos.
 
 ### 2. Librería PDF y publicación atómica
 
@@ -54,7 +54,7 @@ Necesitamos definir:
 El DTO puro `ConstanciaPago` (armado en `brickly/aplicacion/constancias.py` con
 montos en centavos enteros) contiene:
 
-1. **Encabezado:** título `"Constancia de pago"`, fecha de emisión (`Reloj.hoy()`)
+1. **Encabezado:** título `"Recibo de pago"`, fecha de emisión (`Reloj.hoy()`)
    y datos del emisor si están configurados (`admin_nombre`, `admin_telefono`,
    `admin_email`).
 2. **Identificación:**
@@ -71,10 +71,14 @@ montos en centavos enteros) contiene:
    `Otro`), capital imputado, mora imputada y subtotal aplicado a esta cuota. Si un
    pago cubrió varias cuotas en FIFO, se informa únicamente la fracción imputada a
    esta cuota.
-5. **Pie de alcance:**
-   *"La presente constancia certifica el pago de la cuota del período indicado y no
-   implica que la unidad esté libre de otras obligaciones."*
+5. **Pie del recibo:**
+   *"Se recibió el dinero correspondiente al pago del mes indicado."*
 6. **Bloque de firma visual al pie:**
+   - Si el administrador subió una foto o imagen de su firma (PNG, JPG/JPEG, WebP
+     o BMP) desde **Configuración → Datos del administrador** (persistida como BLOB
+     en la tabla singleton `firma_admin`, migración `0003_firma_admin.sql`),
+     `GeneradorPdfReportlab` decodifica la imagen (aplicando rotación EXIF si la
+     hubiera) y la dibuja centrada justo encima de la línea de firma.
    - Línea de firma + nombre disponible + rol **`Propietario/a o Administrador/a`**.
    - **Regla de resolución del nombre:**
      - Si están cargados tanto `departamentos.propietario` como `admin_nombre` en
@@ -84,6 +88,7 @@ montos en centavos enteros) contiene:
      - Si no está `propietario` pero sí `admin_nombre`: se muestra `admin_nombre`.
      - Si ninguno está cargado: se muestra solo la línea y el rol
        `"Propietario/a o Administrador/a"` para firmar de puño y letra.
+
 
 ### 4. No-goals (fuera de alcance)
 

@@ -1180,6 +1180,13 @@ class PanelConstancia(ctk.CTkFrame):
             if constancia.firma_nombre
             else f"Firma: línea en blanco ({constancia.firma_rol})"
         )
+        if constancia.tiene_firma_imagen:
+            detalle_archivo = (
+                f" ({constancia.firma_nombre_archivo})"
+                if constancia.firma_nombre_archivo
+                else ""
+            )
+            texto_firma = f"{texto_firma} · Firma (foto){detalle_archivo}"
         ctk.CTkLabel(
             cuerpo,
             text=texto_firma,
@@ -1193,13 +1200,14 @@ class PanelConstancia(ctk.CTkFrame):
 
         ctk.CTkLabel(
             cuerpo,
-            text=f"{constancia.leyenda_pie}\n{constancia.leyenda_no_fiscal}",
+            text=constancia.leyenda_pie,
             font=estilo.FUENTE_CHICO,
             text_color=estilo.TEXTO_3,
             anchor="w",
             justify="left",
             wraplength=310,
         ).grid(row=fila, column=0, sticky="w", pady=(2, 4))
+
 
         # Botonera fija abajo
         botones = ctk.CTkFrame(interior, fg_color="transparent")

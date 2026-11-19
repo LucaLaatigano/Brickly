@@ -17,6 +17,7 @@ from brickly.ui.vistas.cobranzas import VistaCobranzas
 from brickly.ui.vistas.configuracion import VistaConfiguracion
 from brickly.ui.vistas.departamentos import VistaDepartamentos
 from brickly.ui.vistas.detalle_departamento import VistaDetalleDepartamento
+from brickly.ui.vistas.importacion_departamentos import VistaImportacionDepartamentos
 from brickly.ui.vistas.informes import VistaInformes
 from brickly.ui.vistas.panel import VistaPanel
 
@@ -147,12 +148,22 @@ class VentanaPrincipal(ctk.CTk):
                     al_volver=lambda: self.ir_a("Departamentos"),
                     al_eliminado=self._departamento_eliminado,
                 )
-            return VistaDepartamentos(
+            modo_inicial = opciones.get("modo_inicial")
+            if modo_inicial == "importar":
+                return VistaImportacionDepartamentos(
+                    self.contenido,
+                    self.servicios,
+                    al_volver=lambda: self.ir_a("Departamentos"),
+                    al_navegar=self._navegar,
+                )
+            vista_deptos = VistaDepartamentos(
                 self.contenido,
                 self.servicios,
                 al_abrir_detalle=self._abrir_detalle_departamento,
+                al_abrir_importacion=self._abrir_importacion_departamentos,
                 mensaje_inicial=mensaje_banner,
             )
+            return vista_deptos
         if clave == "Cobranzas":
             return VistaCobranzas(
                 self.contenido,
@@ -178,6 +189,17 @@ class VentanaPrincipal(ctk.CTk):
             )
         )
         # El detalle es una hoja de Departamentos: la nav queda en ese ítem.
+        self._marcar_activa("Departamentos")
+
+    def _abrir_importacion_departamentos(self) -> None:
+        self._montar(
+            lambda: VistaImportacionDepartamentos(
+                self.contenido,
+                self.servicios,
+                al_volver=lambda: self.ir_a("Departamentos"),
+                al_navegar=self._navegar,
+            )
+        )
         self._marcar_activa("Departamentos")
 
     def _departamento_eliminado(self, mensaje: str) -> None:

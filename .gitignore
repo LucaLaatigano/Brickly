@@ -19,3 +19,8 @@ dist/
 *.sqlite3-shm
 *.csv
 *.xlsx
+photo.pdf
+Photo.pdf
+
+# Ejemplo de importación (datos ficticios)
+!docs/ejemplos/*.xlsx

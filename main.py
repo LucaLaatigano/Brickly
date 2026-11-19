@@ -16,6 +16,7 @@ from brickly.aplicacion.configuracion import ServicioConfiguracion
 from brickly.aplicacion.constancias import ServicioConstancias
 from brickly.aplicacion.contenedor import Servicios
 from brickly.aplicacion.departamentos import ServicioDepartamentos
+from brickly.aplicacion.importacion import ServicioImportacionDepartamentos
 from brickly.aplicacion.informes import ServicioInformes
 from brickly.aplicacion.sincronizacion_ipc import ServicioSincronizacionIpc
 from brickly.infraestructura.archivos import EscritorArchivosSistema, RespaldadorSQLite
@@ -37,7 +38,7 @@ from brickly.infraestructura.db.repositorios.departamentos import (
     RepositorioDepartamentosSQLite,
 )
 from brickly.infraestructura.db.repositorios.informes import RepositorioInformesSQLite
-from brickly.infraestructura.excel import EscritorExcelOpenpyxl
+from brickly.infraestructura.excel import EscritorExcelOpenpyxl, LectorExcelOpenpyxl
 from brickly.infraestructura.indec import ClienteIndecHttp
 from brickly.infraestructura.pdf import GeneradorPdfReportlab
 from brickly.infraestructura.reloj import RelojSistema
@@ -76,12 +77,15 @@ def main() -> None:
 
     repo_configuracion = RepositorioConfiguracionSQLite(conexion)
     repo_ajustes = RepositorioAjustesSQLite(conexion)
+    repo_departamentos = RepositorioDepartamentosSQLite(conexion, reloj=reloj)
     configuracion = ServicioConfiguracion(repo_configuracion, reloj)
     cobranzas = ServicioCobranzas(RepositorioCobranzasSQLite(conexion), reloj=reloj)
+    escritor_excel = EscritorExcelOpenpyxl()
+    lector_excel = LectorExcelOpenpyxl()
 
     servicios = Servicios(
         departamentos=ServicioDepartamentos(
-            RepositorioDepartamentosSQLite(conexion, reloj=reloj),
+            repo_departamentos,
             reloj=reloj,
         ),
         cobranzas=cobranzas,
@@ -103,13 +107,19 @@ def main() -> None:
             respaldador=RespaldadorSQLite(conexion),
             escritor=EscritorArchivosSistema(),
             reloj=reloj,
-            escritor_excel=EscritorExcelOpenpyxl(),
+            escritor_excel=escritor_excel,
         ),
         constancias=ServicioConstancias(
             repositorio=RepositorioConstanciasSQLite(conexion),
             configuracion=configuracion,
             generador_pdf=GeneradorPdfReportlab(),
             reloj=reloj,
+        ),
+        importacion=ServicioImportacionDepartamentos(
+            repositorio_departamentos=repo_departamentos,
+            lector_excel=lector_excel,
+            reloj=reloj,
+            escritor_excel=escritor_excel,
         ),
         configuracion=configuracion,
         ruta_base=str(ruta),

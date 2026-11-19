@@ -1,7 +1,8 @@
 # Plan Brickly 1.1 — Identidad, IPC automático, Excel y constancias de pago
 
-- **Estado:** H5, H6, H7 y H8 técnicos completos — Release 1.1.0 (2026-11-04);
-  pendiente la pasada visual del usuario a 125 % DPI.
+- **Estado:** cerrado — Release 1.1.0 (2026-11-04). La pasada visual a
+  125 % DPI y el trabajo de importación continúan en
+  `docs/plan-brickly-v1.2.md`.
 - **Plan anterior:** `docs/arranque-h0.md` (H0–H4, cerrado; se conserva como
   histórico para comparar features).
 - **Dueño de ejecución:** senior-dev.

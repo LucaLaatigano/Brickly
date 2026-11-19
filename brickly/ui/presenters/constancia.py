@@ -57,6 +57,12 @@ class ConstanciaPresentada:
     leyenda_no_fiscal: str
     nombre_archivo_sugerido: str
     pagos: tuple[PagoConstanciaPresentado, ...]
+    tiene_firma_imagen: bool = False
+    firma_nombre_archivo: str | None = None
+
+    @property
+    def tiene_firma_pdf(self) -> bool:
+        return self.tiene_firma_imagen
 
 
 def presentar_constancia(doc: ConstanciaPago) -> ConstanciaPresentada:
@@ -100,7 +106,10 @@ def presentar_constancia(doc: ConstanciaPago) -> ConstanciaPresentada:
         leyenda_no_fiscal=doc.leyenda_no_fiscal,
         nombre_archivo_sugerido=doc.nombre_archivo_sugerido,
         pagos=pagos,
+        tiene_firma_imagen=bool(doc.firma_imagen),
+        firma_nombre_archivo=doc.firma_nombre_archivo,
     )
+
 
 
 def _resolver_servicio(

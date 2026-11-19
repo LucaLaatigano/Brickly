@@ -160,7 +160,9 @@ class VistaPanel(VistaBase):
             boton = ctk.CTkButton(
                 tarjeta.cuerpo,
                 text=texto,
-                command=lambda destino=paso.destino: self._al_navegar(destino, None),
+                command=lambda destino=paso.destino, opciones=paso.opciones: self._al_navegar(
+                    destino, opciones
+                ),
                 anchor="w",
                 height=estilo.ALTO_BOTON,
                 fg_color="transparent",

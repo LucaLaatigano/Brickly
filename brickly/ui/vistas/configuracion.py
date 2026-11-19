@@ -24,6 +24,7 @@ from brickly.aplicacion.configuracion import (
     DatosConfiguracion,
 )
 from brickly.aplicacion.contenedor import Servicios
+from brickly.aplicacion.puertos import FirmaAdminGuardada
 from brickly.aplicacion.sincronizacion_ipc import (
     EstadoTokenIpc,
     ResultadoPruebaIpc,
@@ -51,6 +52,13 @@ _REDONDEO_POR_ETIQUETA = {v: k for k, v in _ETIQUETA_REDONDEO.items()}
 def texto_tasa_input(bp: int) -> str:
     """`2,00` (sin `%`) para el input; el parseo lo hace `parsear_porcentaje`."""
     return formatear_porcentaje(bp).removesuffix(" %")
+
+
+def texto_estado_firma_admin(firma: FirmaAdminGuardada | None) -> str:
+    """Resumen legible del estado de la foto de firma del administrador."""
+    if firma is None:
+        return "Firma (foto): Sin cargar"
+    return f"Firma (foto): {firma.nombre_archivo}"
 
 
 def texto_estado_token_indec(estado: EstadoTokenIpc) -> str:
@@ -91,6 +99,9 @@ class VistaConfiguracion(VistaBase):
         super().__init__(master, titulo="Configuración")
         self._servicios = servicios
         self._campos: dict[str, Campo] = {}
+        self._label_estado_firma: ctk.CTkLabel | None = None
+        self._boton_subir_firma: ctk.CTkButton | None = None
+        self._boton_quitar_firma: ctk.CTkButton | None = None
         self._campo_token_indec: Campo | None = None
         self._label_estado_indec: ctk.CTkLabel | None = None
         self._boton_guardar_token: ctk.CTkButton | None = None
@@ -149,13 +160,45 @@ class VistaConfiguracion(VistaBase):
         tarjeta = Tarjeta(marco, titulo="Datos del administrador")
         tarjeta.grid(row=0, column=1, sticky="nsew")
         cuerpo = tarjeta.cuerpo
+        cuerpo.grid_columnconfigure(0, weight=1)
 
         self._campo(
             "admin_nombre", cuerpo, "Nombre", 0, 0,
-            ayuda="Para constancias de pago y exportaciones.",
+            ayuda="Para recibos de pago y exportaciones.",
         )
         self._campo("admin_telefono", cuerpo, "Teléfono", 1, 0)
         self._campo("admin_email", cuerpo, "Email", 2, 0)
+
+        self._label_estado_firma = ctk.CTkLabel(
+            cuerpo,
+            text="Firma (foto): Sin cargar",
+            font=estilo.FUENTE_CHICO,
+            text_color=estilo.TEXTO_2,
+            anchor="w",
+            justify="left",
+            wraplength=420,
+        )
+        self._label_estado_firma.grid(row=4, column=0, sticky="w", pady=(4, 6))
+
+        botones_firma = ctk.CTkFrame(cuerpo, fg_color="transparent")
+        botones_firma.grid(row=5, column=0, sticky="w")
+
+        self._boton_subir_firma = estilo.boton_secundario(
+            botones_firma,
+            "Subir firma (foto)",
+            command=self._subir_firma,
+            height=estilo.ALTO_BOTON_FILA,
+        )
+        self._boton_subir_firma.pack(side="left")
+
+        self._boton_quitar_firma = estilo.boton_secundario(
+            botones_firma,
+            "Quitar firma",
+            command=self._quitar_firma,
+            height=estilo.ALTO_BOTON_FILA,
+        )
+        self._boton_quitar_firma.configure(text_color=estilo.PELIGRO)
+        self._boton_quitar_firma.pack(side="left", padx=(8, 0))
 
     def _pintar_datos(self, marco) -> None:
         tarjeta = Tarjeta(marco, titulo="Datos y respaldo")
@@ -323,7 +366,67 @@ class VistaConfiguracion(VistaBase):
         self._campos["admin_nombre"].poner_valor(configuracion.admin_nombre or "")
         self._campos["admin_telefono"].poner_valor(configuracion.admin_telefono or "")
         self._campos["admin_email"].poner_valor(configuracion.admin_email or "")
+        self._refrescar_estado_firma()
         self._refrescar_estado_indec()
+
+    # --- firma (foto/imagen) del administrador --------------------------------
+
+    def _refrescar_estado_firma(self) -> None:
+        if self._label_estado_firma is None:
+            return
+        firma = self._servicios.configuracion.obtener_firma()
+        self._label_estado_firma.configure(
+            text=texto_estado_firma_admin(firma),
+            text_color=estilo.TEXTO if firma is not None else estilo.TEXTO_2,
+        )
+        if self._boton_quitar_firma is not None:
+            self._boton_quitar_firma.configure(
+                state="normal" if firma is not None else "disabled"
+            )
+
+    def _subir_firma(
+        self, ruta_seleccionada: str | Path | None = None
+    ) -> None:
+        ruta_str = str(ruta_seleccionada) if ruta_seleccionada else ""
+        if not ruta_str:
+            ruta_str = filedialog.askopenfilename(
+                parent=self,
+                title="Seleccionar foto de firma",
+                filetypes=[
+                    ("Imágenes", "*.png *.jpg *.jpeg *.webp *.bmp"),
+                    ("PNG", "*.png"),
+                    ("JPEG", "*.jpg *.jpeg"),
+                    ("WebP", "*.webp"),
+                    ("BMP", "*.bmp"),
+                ],
+            )
+            if not ruta_str:
+                return
+        ruta_archivo = Path(ruta_str)
+        try:
+            contenido = ruta_archivo.read_bytes()
+            self._servicios.configuracion.guardar_firma(
+                ruta_archivo.name, contenido
+            )
+        except (ErrorDeValidacion, ErrorDeNegocio, OSError) as error:
+            self.mostrar_banner("error", f"No se pudo guardar la firma: {error}")
+            return
+
+        self._refrescar_estado_firma()
+        self.mostrar_banner("exito", "Firma guardada en la base de datos.")
+
+    def _quitar_firma(self) -> None:
+        try:
+            self._servicios.configuracion.borrar_firma()
+        except (ErrorDeValidacion, ErrorDeNegocio, OSError) as error:
+            self.mostrar_banner("error", f"No se pudo quitar la firma: {error}")
+            return
+        self._refrescar_estado_firma()
+        self.mostrar_banner("exito", "Firma eliminada de la base de datos.")
+
+    _subir_firma_pdf = _subir_firma
+    _quitar_firma_pdf = _quitar_firma
+
 
     def _guardar(self) -> None:
         for campo in self._campos.values():

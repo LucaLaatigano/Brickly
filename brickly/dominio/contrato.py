@@ -51,9 +51,9 @@ class Inquilino:
 class Contrato:
     """Condiciones vigentes o históricas del alquiler de un departamento."""
 
-    departamento_id: int
     fecha_inicio: date
     monto_centavos: int
+    departamento_id: int | None = None
     dia_vencimiento: int = 10
     dias_gracia: int = 5
     tasa_mora_bp: int = 200

@@ -23,10 +23,11 @@ departamentos: cuotas, mora por atraso y ajuste trimestral por IPC.
 - Leer `docs/adr/README.md` (índice de decisiones). Vigentes: **ADR-0001**
   (4 capas con dependencias hacia adentro), **ADR-0002** (reglas de negocio
   del MVP: ajuste IPC, redondeo, vencimiento, mora), **ADR-0003**
-  (sincronización automática de IPC Nacional desde API INDEC) y **ADR-0004**
-  (constancia de pago mensual en PDF con firma visual). Una decisión aceptada
-  se aplica, no se re-deriva en silencio; si cambia, se supersede con un ADR
-  nuevo.
+  (sincronización automática de IPC Nacional desde API INDEC), **ADR-0004**
+  (constancia de pago mensual en PDF con firma visual) y **ADR-0005**
+  (importación de Excel de departamentos, inquilinos y contratos vigentes). Una
+  decisión aceptada se aplica, no se re-deriva en silencio; si cambia, se
+  supersede con un ADR nuevo.
 - Correr `.venv\Scripts\python -m pytest tests/` tras cualquier cambio. El test
   de dependencias (`tests/test_arquitectura.py`) es obligatorio en verde: si
   falla, se mueve el código de capa, no se relaja el test.
@@ -40,7 +41,7 @@ departamentos: cuotas, mora por atraso y ajuste trimestral por IPC.
 
 ## Estado actual
 
-H0, H1, H2, H3, H4, H5, H6, H7 y H8 implementados — **Release 1.1.0** (2026-11-04):
+H0, H1, H2, H3, H4, H5, H6, H7, H8 y H9 implementados — **Release 1.2.0 en preparación** (2026-11-19):
 - **H0:** composition root (`main.py`), conexión + migrador, shell con
   navegación (`brickly/ui/ventana.py`), componentes base de §2 y
   **departamentos de punta a punta** (ABM en panel lateral de 380 px).
@@ -198,10 +199,45 @@ H0, H1, H2, H3, H4, H5, H6, H7 y H8 implementados — **Release 1.1.0** (2026-11
   - **UI y Presentador:** `brickly/ui/presenters/constancia.py` (`ConstanciaPresentada`, `preparar_constancia`, `PresenterConstancia`), `PanelConstancia` lateral de 380 px en `brickly/ui/vistas/cobranzas.py` al hacer clic en una fila `pagada` de `Cobranzas → Mes` (con ayuda `"Click en una cuota pagada para generar su constancia."`) y texto de ayuda actualizado en `brickly/ui/vistas/configuracion.py`.
   - **Tests y Release 1.1.0:** `VERSION = "1.1.0"`, `FECHA_BUILD = "2026-11-04"`, suite completa en verde (`283 passed`, incluyendo `tests/test_constancias_h8.py` y `tests/test_arquitectura.py`), `dist\Brickly.exe` y `dist\SHA256.txt` generados y verificados.
 
-- Pendiente para cerrar visualmente: pasada del usuario a 125 % DPI
-  (checklist §6.4, incluye Ajustes IPC, Panel, Informes, Configuración y
-  `PanelConstancia`). `docs/arranque-h0.md` se conserva por decisión del usuario,
-  no se borra.
+- **H9 — Importación de Excel (ADR-0005) y recibo con foto de firma:**
+  - **Alcance:** importación de `.xlsx` con departamentos, inquilinos y
+    contratos vigentes; 16 campos canónicos; mapeo asistido; vista previa
+    obligatoria con corrección inline en panel de 380 px; plantilla descargable;
+    deduplicación idempotente y guardado atómico. No importa cuotas, pagos,
+    deudas ni ajustes históricos.
+  - **Aplicación (`brickly/aplicacion/importacion.py`):** parsers sin `float`,
+    detección de encabezado, sugerencia de mapeo y
+    `ServicioImportacionDepartamentos` (`inspeccionar_archivo`,
+    `previsualizar`, `importar`, `generar_plantilla`).
+  - **Dominio:** `clave_unidad_normalizada` y `desglosar_unidad_compuesta` en
+    `brickly/dominio/departamento.py`.
+  - **Puertos e infraestructura:** `LectorExcel` y `EscritorExcel` en
+    `puertos.py`; `LectorExcelOpenpyxl` en `infraestructura/excel.py`;
+    `guardar_lote_importacion` transaccional en
+    `RepositorioDepartamentosSQLite`.
+  - **UI:** `brickly/ui/presenters/importacion.py` y
+    `brickly/ui/vistas/importacion_departamentos.py` (wizard inline de 3 pasos,
+    stepper, filtros, `PanelFilaImportacion` de 380 px y resultado con CTA a
+    Cobranzas). Entradas desde Departamentos (encabezado y estado vacío) y
+    checklist del Panel (`modo_inicial="importar"`).
+  - **Recibo con foto de firma (mejora de H8):** migración
+    `0003_firma_admin.sql` (tabla singleton `firma_admin`), subida/quitada de
+    la imagen desde Configuración, dibujo de la firma en el PDF y título
+    "Recibo de pago" (ADR-0004 actualizado).
+  - **Ejemplo:** `docs/ejemplos/importacion-departamentos-ficticios.xlsx`.
+  - **Tests:** suite completa en verde (`369 passed`), incluyendo
+    `test_dominio_importacion.py`, `test_importacion_h9_servicio.py`,
+    `test_importacion_h9_lectura.py`, `test_importacion_h9_repositorio.py`,
+    `test_importacion_h9_integracion.py`, `test_presenter_importacion.py`,
+    `test_qa_importacion_h9.py`, `test_constancias_h8.py` y
+    `test_arquitectura.py`.
+
+- Pendiente para cerrar visualmente la 1.2: pasada del usuario a 125 % DPI
+  (checklist §6.4, incluye Ajustes IPC, Panel, Informes, Configuración,
+  `PanelConstancia`, el wizard de importación y su panel de 380 px), más el
+  smoke manual del flujo de importación dentro del `.exe`.
+  `docs/arranque-h0.md` y `docs/plan-brickly-v1.1.md` se conservan como
+  histórico, no se borran.
 
 
 

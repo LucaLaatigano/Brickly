@@ -18,7 +18,7 @@ from brickly.aplicacion.departamentos import (
     PagoImputadoCuota,
     PredeterminadosContrato,
 )
-from brickly.aplicacion.puertos import Reloj
+from brickly.aplicacion.puertos import ItemImportacionPersistible, Reloj
 from brickly.dominio.contrato import Contrato, Inquilino
 from brickly.dominio.cuota import (
     calcular_mora_cuota,
@@ -567,3 +567,69 @@ class RepositorioDepartamentosSQLite:
             ultimo_pago=_fecha(fila["ultimo_pago"]),
             fecha_contrato_vencido=fecha_vencido,
         )
+
+    def guardar_lote_importacion(
+        self, items: list[ItemImportacionPersistible]
+    ) -> tuple[int, int]:
+        departamentos_creados = 0
+        contratos_creados = 0
+        try:
+            with self._conexion:
+                for item in items:
+                    cursor = self._conexion.execute(
+                        "INSERT INTO departamentos (direccion, piso, depto, m2, propietario)"
+                        " VALUES (?, ?, ?, ?, ?)",
+                        (
+                            item.departamento.direccion,
+                            item.departamento.piso,
+                            item.departamento.depto,
+                            item.departamento.m2,
+                            item.departamento.propietario,
+                        ),
+                    )
+                    depto_id = int(cursor.lastrowid)
+                    departamentos_creados += 1
+
+                    if item.contrato is not None and item.inquilino is not None:
+                        inquilino_cursor = self._conexion.execute(
+                            "INSERT INTO inquilinos (nombre, telefono, email) VALUES (?, ?, ?)",
+                            (
+                                item.inquilino.nombre,
+                                item.inquilino.telefono,
+                                item.inquilino.email,
+                            ),
+                        )
+                        inquilino_id = int(inquilino_cursor.lastrowid)
+
+                        self._conexion.execute(
+                            "INSERT INTO contratos ("
+                            "    departamento_id, inquilino_id, fecha_inicio, fecha_fin,"
+                            "    monto_centavos, dia_vencimiento, dias_gracia,"
+                            "    tasa_mora_bp, ciclo_meses, redondeo_centavos"
+                            ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            (
+                                depto_id,
+                                inquilino_id,
+                                item.contrato.fecha_inicio.isoformat(),
+                                item.contrato.fecha_fin.isoformat()
+                                if item.contrato.fecha_fin
+                                else None,
+                                item.contrato.monto_centavos,
+                                item.contrato.dia_vencimiento,
+                                item.contrato.dias_gracia,
+                                item.contrato.tasa_mora_bp,
+                                item.contrato.ciclo_meses,
+                                item.contrato.redondeo_centavos,
+                            ),
+                        )
+                        contratos_creados += 1
+        except sqlite3.IntegrityError as error:
+            raise ErrorDeNegocio(
+                f"Error al guardar el lote de importación: {error}"
+            ) from error
+        except sqlite3.Error as error:
+            raise ErrorDeNegocio(
+                f"Error de base de datos durante la importación: {error}"
+            ) from error
+
+        return (departamentos_creados, contratos_creados)

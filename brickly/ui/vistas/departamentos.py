@@ -83,14 +83,25 @@ class VistaDepartamentos(VistaBase):
         master,
         servicios: Servicios,
         al_abrir_detalle,
+        al_abrir_importacion=None,
         mensaje_inicial: tuple[str, str] | None = None,
     ):
         super().__init__(master, titulo="Departamentos")
         self._servicios = servicios
         self._presentador = PresenterDepartamentos(servicios)
         self._al_abrir_detalle = al_abrir_detalle
+        self._al_abrir_importacion = al_abrir_importacion
         self._panel: PanelDepartamento | None = None
         self._rebote: str | None = None
+
+        if al_abrir_importacion is not None:
+            self.agregar_accion(
+                estilo.boton_secundario(
+                    self._acciones,
+                    "Importar desde Excel",
+                    command=al_abrir_importacion,
+                )
+            )
 
         self.agregar_accion(
             estilo.boton_primario(self._acciones, "+ Agregar departamento", command=self._abrir_alta)
@@ -185,10 +196,19 @@ class VistaDepartamentos(VistaBase):
         etiqueta = self._selector.get()
         if etiqueta != "Todos":
             return f"Nada coincide con «{etiqueta}».", ("Limpiar filtro", self._limpiar_filtros)
-        return (
-            "Todavía no hay departamentos cargados. Empezá agregando el primero.",
-            ("Agregar departamento", self._abrir_alta),
+        accion = (
+            ("Importar desde un Excel", self._al_abrir_importacion)
+            if self._al_abrir_importacion is not None
+            else ("Agregar departamento", self._abrir_alta)
         )
+        return (
+            "Todavía no hay departamentos cargados. Empezá agregando o importando el primero.",
+            accion,
+        )
+
+    def aplicar_contexto(self, opciones: dict) -> None:
+        if opciones.get("modo_inicial") == "importar" and self._al_abrir_importacion is not None:
+            self.after(50, self._al_abrir_importacion)
 
     def _al_escribir(self, _evento=None) -> None:
         """Debounce 300 ms (§3.2): una recarga por pausa de tipeo, no por tecla."""

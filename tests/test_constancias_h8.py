@@ -61,6 +61,7 @@ from brickly.infraestructura.db.repositorios.departamentos import (
 )
 from brickly.infraestructura.pdf import (
     GeneradorPdfReportlab,
+    cargar_imagen_firma,
     formatear_fecha_pdf,
     formatear_monto_pdf,
 )
@@ -69,6 +70,9 @@ from brickly.ui.presenters.constancia import (
     preparar_constancia,
 )
 from brickly.ui.vistas.cobranzas import AYUDA_CONSTANCIA_MES
+
+RAIZ = Path(__file__).resolve().parents[1]
+
 
 
 class RelojFijo:
@@ -475,10 +479,12 @@ def test_generador_pdf_real_acentos_formatos_y_error_archivo_abierto(
     assert contenido.startswith(b"%PDF-")
     assert len(contenido) > 1000
     # Como pageCompression=0, los textos en WinAnsi/Latin-1 están presentes en el stream
-    assert "Constancia de pago".encode("latin-1") in contenido
+    assert "Recibo de pago".encode("latin-1") in contenido
     assert "$ 12.800,00".encode("latin-1") in contenido
     assert "Propietario/a o Administrador/a".encode("latin-1") in contenido
-    assert "no implica que la unidad".encode("latin-1") in contenido
+    assert b"correspondiente al pago del mes indicado." in contenido
+    assert b"no implica que la unidad" not in contenido
+    assert b"comprobante fiscal" not in contenido
 
     # Simulamos que el PDF está abierto y bloqueado en otro visor en Windows
     import os
@@ -493,6 +499,169 @@ def test_generador_pdf_real_acentos_formatos_y_error_archivo_abierto(
     # No deben quedar archivos .tmp huérfanos
     temporales = list(tmp_path.glob("*.tmp"))
     assert temporales == []
+
+
+def test_carga_y_estampado_foto_firma_real(tmp_path: Path) -> None:
+    import io
+    from PIL import Image, ImageDraw
+
+    # Generamos una foto de firma realista en memoria (PNG con transparencia)
+    lienzo = Image.new("RGBA", (360, 120), (255, 255, 255, 0))
+    dibujo = ImageDraw.Draw(lienzo)
+    dibujo.line([(20, 90), (120, 35), (210, 85), (330, 30)], fill=(20, 30, 120, 255), width=4)
+    buf_png = io.BytesIO()
+    lienzo.save(buf_png, format="PNG")
+    firma_png_bytes = buf_png.getvalue()
+
+    img = cargar_imagen_firma(firma_png_bytes)
+    assert img is not None
+    assert img.size == (360, 120)
+    assert img.mode == "RGBA"
+
+    # Verifica también JPEG con rotación EXIF (orientación 6 = 90° CW -> transpone dimensiones)
+    img_exif_src = Image.new("RGB", (80, 200), (250, 250, 250))
+    exif = img_exif_src.getexif()
+    exif[0x0112] = 6  # Orientation = Rotate 90 CW
+    buf_jpg = io.BytesIO()
+    img_exif_src.save(buf_jpg, format="JPEG", exif=exif)
+    img_exif = cargar_imagen_firma(buf_jpg.getvalue())
+    assert img_exif is not None
+    assert img_exif.size == (200, 80)
+    assert img_exif.mode == "RGB"
+
+    # Bytes inválidos o PDF devuelven None sin excepción
+    assert cargar_imagen_firma(b"") is None
+    assert cargar_imagen_firma(b"%PDF-1.4 no es imagen") is None
+    assert cargar_imagen_firma(b"\x89PNG\r\n\x1a\ntruncado") is None
+
+    # Distintos modos de color de Pillow: 1, L, LA, P (opaco y con transparencia), RGBA, CMYK
+    # y proporciones extremas (muy ancha y muy alta) al estampar con ReportLab
+    modos_prueba: list[tuple[str, bytes, str]] = []
+
+    for modo_src, fmt, esperado in (
+        ("1", "PNG", "RGB"),
+        ("L", "PNG", "RGB"),
+        ("LA", "PNG", "RGBA"),
+        ("RGB", "BMP", "RGB"),
+        ("RGBA", "WEBP", "RGBA"),
+        ("CMYK", "JPEG", "RGB"),
+    ):
+        b_img = io.BytesIO()
+        color = 1 if modo_src == "1" else (120 if modo_src == "L" else (120, 200) if modo_src == "LA" else (10, 20, 30, 40) if modo_src in ("RGBA", "CMYK") else (10, 20, 30))
+        Image.new(modo_src, (90, 30), color).save(b_img, format=fmt)
+        modos_prueba.append((f"{modo_src}_{fmt}", b_img.getvalue(), esperado))
+
+    # Modo P sin transparencia y con transparencia
+    img_p_opaca = Image.new("P", (90, 30), 1)
+    img_p_opaca.putpalette([i % 256 for i in range(768)])
+    b_p_opaca = io.BytesIO()
+    img_p_opaca.save(b_p_opaca, format="PNG")
+    modos_prueba.append(("P_opaca", b_p_opaca.getvalue(), "RGB"))
+
+    b_p_trans = io.BytesIO()
+    img_p_opaca.save(b_p_trans, format="PNG", transparency=0)
+    modos_prueba.append(("P_transparente", b_p_trans.getvalue(), "RGBA"))
+
+    # Proporciones extremas (1000x10 y 10x1000)
+    for dim in ((1000, 10), (10, 1000)):
+        b_ext = io.BytesIO()
+        Image.new("RGBA", dim, (0, 0, 0, 255)).save(b_ext, format="PNG")
+        modos_prueba.append((f"extrema_{dim[0]}x{dim[1]}", b_ext.getvalue(), "RGBA"))
+
+    generador_directo = GeneradorPdfReportlab()
+    for etiqueta, raw_bytes, modo_esperado in modos_prueba:
+        decodificada = cargar_imagen_firma(raw_bytes)
+        assert decodificada is not None, f"Falló decodificación para {etiqueta}"
+        assert decodificada.mode == modo_esperado, f"Modo inesperado en {etiqueta}: {decodificada.mode}"
+        doc_modo = armar_constancia_pago(
+            _registro_base(),
+            hoy=date(2026, 10, 15),
+            firma_imagen=raw_bytes,
+            firma_nombre_archivo=f"{etiqueta}.png",
+        )
+        ruta_modo = tmp_path / f"recibo-{etiqueta}.pdf"
+        generador_directo.generar(doc_modo, ruta_modo)
+        pdf_modo_bytes = ruta_modo.read_bytes()
+        assert pdf_modo_bytes.startswith(b"%PDF-")
+        assert b"/Subtype /Image" in pdf_modo_bytes
+
+    conn, srv_deptos, srv_cobranzas, srv_config, srv_constancias = (
+        _armar_entorno_sqlite(date(2026, 10, 15))
+    )
+    try:
+        depto_id = srv_deptos.crear(
+            DatosDepartamento(
+                direccion="Av. Santa Fe 2140",
+                piso="4",
+                depto="B",
+                m2=55,
+                propietario="Marta Gómez",
+            )
+        )
+        srv_deptos.cargar_contrato(
+            depto_id,
+            DatosContrato(
+                inquilino_nombre="Lucía Peña",
+                inquilino_telefono=None,
+                inquilino_email=None,
+                fecha_inicio=date(2026, 10, 1),
+                fecha_fin=None,
+                monto_centavos=1280000,
+                dia_vencimiento=10,
+                dias_gracia=5,
+                tasa_mora_bp=200,
+                ciclo_meses=3,
+                redondeo_centavos=1,
+            ),
+        )
+        srv_cobranzas.generar_cuotas(2026, 10)
+        cuota_id = srv_cobranzas.del_mes(2026, 10).filas[0].cuota_id
+        srv_cobranzas.registrar_pago(
+            DatosPago(
+                cuota_id=cuota_id,
+                fecha=date(2026, 10, 9),
+                monto_centavos=1280000,
+                medio="transferencia",
+                nota="Transferencia CBU",
+            )
+        )
+
+        ruta_sin_firma = tmp_path / "recibo-sin-firma.pdf"
+        srv_constancias.generar(cuota_id, ruta_sin_firma)
+        bytes_sin_firma = ruta_sin_firma.read_bytes()
+
+        # Guardamos la foto de la firma del administrador en SQLite
+        guardada = srv_config.guardar_firma("firma-admin.png", firma_png_bytes)
+        assert guardada.nombre_archivo == "firma-admin.png"
+
+        servicios = Servicios(
+            departamentos=srv_deptos,
+            cobranzas=srv_cobranzas,
+            configuracion=srv_config,
+            constancias=srv_constancias,
+        )
+        presentada = preparar_constancia(servicios, cuota_id)
+        assert presentada.titulo == "Recibo de pago"
+        assert presentada.tiene_firma_imagen is True
+        assert presentada.firma_nombre_archivo == "firma-admin.png"
+        assert (
+            presentada.leyenda_pie
+            == "Se recibió el dinero correspondiente al pago del mes indicado."
+        )
+
+        ruta_con_firma = tmp_path / "recibo-con-firma.pdf"
+        srv_constancias.generar(cuota_id, ruta_con_firma)
+        bytes_con_firma = ruta_con_firma.read_bytes()
+
+        assert len(bytes_con_firma) > len(bytes_sin_firma)
+        assert b"Recibo de pago" in bytes_con_firma
+        assert b"/Subtype /Image" in bytes_con_firma
+        assert b"/Im" in bytes_con_firma
+        assert b"correspondiente al pago del mes indicado." in bytes_con_firma
+        assert b"no implica que la unidad" not in bytes_con_firma
+        assert b"comprobante fiscal" not in bytes_con_firma
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -548,6 +717,7 @@ def test_presenter_constancia_formatea_montos_y_fechas(tmp_path: Path) -> None:
             constancias=srv_constancias,
         )
         presentada = preparar_constancia(servicios, cuota_id)
+        assert presentada.titulo == "Recibo de pago"
         assert presentada.unidad == "Maipú 120"
         assert presentada.inquilino == "Carlos Ruiz"
         assert presentada.periodo == "octubre 2026"
@@ -556,6 +726,8 @@ def test_presenter_constancia_formatea_montos_y_fechas(tmp_path: Path) -> None:
         assert presentada.total == "$ 12.800,00"
         assert presentada.firma_nombre is None
         assert presentada.firma_rol == "Propietario/a o Administrador/a"
+        assert presentada.tiene_firma_imagen is False
+        assert presentada.firma_nombre_archivo is None
         assert presentada.nombre_archivo_sugerido == "constancia-maipu-120-octubre-2026.pdf"
 
         presenter = PresenterConstancia(servicios)
@@ -566,3 +738,4 @@ def test_presenter_constancia_formatea_montos_y_fechas(tmp_path: Path) -> None:
         assert AYUDA_CONSTANCIA_MES == "Click en una cuota pagada para generar su constancia."
     finally:
         conn.close()
+

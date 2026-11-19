@@ -19,8 +19,10 @@ import os
 from datetime import date
 from pathlib import Path
 
+from PIL import Image, ImageOps
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 
 from brickly.aplicacion.constancias import ConstanciaPago
@@ -46,6 +48,28 @@ def _truncar_texto(texto: str, max_largo: int) -> str:
     if len(limpio) <= max_largo:
         return limpio
     return limpio[: max_largo - 1].rstrip() + "…"
+
+
+def cargar_imagen_firma(datos_imagen: bytes) -> Image.Image | None:
+    """Decodifica los bytes de la foto/imagen de la firma como `PIL.Image`."""
+    if not datos_imagen or datos_imagen.startswith(b"%PDF-"):
+        return None
+    try:
+        img = Image.open(io.BytesIO(datos_imagen))
+        img.load()
+        img = ImageOps.exif_transpose(img)
+        ancho_px, alto_px = img.size
+        if ancho_px <= 0 or alto_px <= 0:
+            return None
+        if img.mode in ("RGBA", "LA") or (
+            img.mode == "P" and "transparency" in img.info
+        ):
+            return img.convert("RGBA")
+        if img.mode != "RGB":
+            return img.convert("RGB")
+        return img
+    except Exception:
+        return None
 
 
 class GeneradorPdfReportlab:
@@ -86,7 +110,7 @@ class GeneradorPdfReportlab:
         c = canvas.Canvas(buffer, pagesize=A4, pageCompression=0)
         c.setTitle(f"{doc.titulo} - {doc.unidad} - {doc.periodo}")
         c.setAuthor(doc.admin_nombre or doc.propietario_nombre or "Brickly")
-        c.setSubject(f"Constancia de pago {doc.periodo} ({doc.unidad})")
+        c.setSubject(f"{doc.titulo} {doc.periodo} ({doc.unidad})")
 
         y = alto - 52.0
 
@@ -262,6 +286,25 @@ class GeneradorPdfReportlab:
         x_firma_izq = (ancho - ancho_linea_firma) / 2.0
         x_firma_centro = ancho / 2.0
 
+        if doc.firma_imagen:
+            imagen_firma = cargar_imagen_firma(doc.firma_imagen)
+            if imagen_firma is not None:
+                ancho_px, alto_px = imagen_firma.size
+                if ancho_px > 0 and alto_px > 0:
+                    max_ancho = 140.0
+                    max_alto = 48.0
+                    escala = min(max_ancho / ancho_px, max_alto / alto_px)
+                    ancho_dib = ancho_px * escala
+                    alto_dib = alto_px * escala
+                    c.drawImage(
+                        ImageReader(imagen_firma),
+                        x_firma_centro - ancho_dib / 2.0,
+                        y_firma_linea + 4.0,
+                        width=ancho_dib,
+                        height=alto_dib,
+                        mask="auto",
+                    )
+
         c.setStrokeColor(colors.HexColor("#71717A"))
         c.setLineWidth(1.0)
         c.line(x_firma_izq, y_firma_linea, x_firma_izq + ancho_linea_firma, y_firma_linea)
@@ -282,7 +325,7 @@ class GeneradorPdfReportlab:
         c.setFont("Helvetica", 9)
         c.drawCentredString(x_firma_centro, y_rol, doc.firma_rol)
 
-        # ── Pie de alcance (no libre deuda / no fiscal) ─────────────────────
+        # ── Pie del recibo ──────────────────────────────────────────────────
         y_pie = 68.0
         c.setStrokeColor(colors.HexColor("#E4E4E7"))
         c.setLineWidth(0.75)
@@ -291,10 +334,8 @@ class GeneradorPdfReportlab:
         c.setFillColor(colors.HexColor("#52525B"))
         c.setFont("Helvetica", 8.5)
         c.drawString(margen_x, y_pie, doc.leyenda_pie)
-        c.setFillColor(colors.HexColor("#71717A"))
-        c.setFont("Helvetica", 8)
-        c.drawString(margen_x, y_pie - 13.0, doc.leyenda_no_fiscal)
 
         c.showPage()
         c.save()
         return buffer.getvalue()
+

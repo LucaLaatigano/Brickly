@@ -13,13 +13,16 @@ mensaje claro en castellano cuando el archivo está abierto en Excel.
 from __future__ import annotations
 
 import os
-from datetime import date
+import zipfile
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.utils.exceptions import InvalidFileException
 from openpyxl.worksheet.worksheet import Worksheet
 
 from brickly.aplicacion.informes import (
@@ -29,6 +32,12 @@ from brickly.aplicacion.informes import (
     ValorCeldaExcel,
     sanitizar_texto_excel,
 )
+from brickly.aplicacion.puertos import (
+    FilaCrudaExcel,
+    HojaCrudaExcel,
+    ValorCeldaCruda,
+)
+from brickly.dominio.errores import ErrorDeNegocio
 
 FORMATO_MONEDA_EXCEL = '$ #,##0.00;-$ #,##0.00;"$ 0.00"'
 FORMATO_FECHA_EXCEL = "dd/mm/yyyy"
@@ -214,3 +223,170 @@ class EscritorExcelOpenpyxl:
             raise
         finally:
             wb.close()
+
+
+def _convertir_valor_celda_openpyxl(
+    val: Any, number_format: str | None
+) -> ValorCeldaCruda:
+    if val is None:
+        return None
+    if val == "__FORMULA_SIN_VALOR__":
+        return "__FORMULA_SIN_VALOR__"
+    # bool es subclase de int, chequear antes
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, datetime):
+        return val.date()
+    if isinstance(val, date):
+        return val
+    es_porcentaje = isinstance(number_format, str) and "%" in number_format
+    if isinstance(val, float):
+        if es_porcentaje:
+            porcentaje_dec = Decimal(str(round(val * 100, 4)))
+            texto_pct = (
+                f"{porcentaje_dec:f}".rstrip("0").rstrip(".")
+                if "." in f"{porcentaje_dec:f}"
+                else f"{porcentaje_dec}"
+            )
+            return f"{texto_pct}%"
+        return Decimal(str(round(val, 6)))
+    if isinstance(val, int):
+        if es_porcentaje:
+            return f"{val * 100}%"
+        return val
+    if isinstance(val, Decimal):
+        return val
+    if isinstance(val, str):
+        texto = val.strip()
+        return texto or None
+    return str(val)
+
+
+def _validar_ruta_excel(ruta_archivo: Path | str) -> Path:
+    ruta = Path(ruta_archivo)
+    sufijo = ruta.suffix.lower()
+    if sufijo == ".xls":
+        raise ErrorDeNegocio(
+            "El formato .xls no es compatible. Abrí el archivo en Excel y guardalo como .xlsx para importarlo."
+        )
+    if sufijo != ".xlsx":
+        raise ErrorDeNegocio("El archivo debe ser un libro de Excel (.xlsx).")
+    if not ruta.is_file():
+        raise ErrorDeNegocio(f"El archivo «{ruta.name}» no existe.")
+    return ruta
+
+
+class LectorExcelOpenpyxl:
+    """Lee libros `.xlsx` y entrega datos crudos limpios sin `float`."""
+
+    def listar_hojas(self, ruta: str) -> list[str]:
+        archivo = _validar_ruta_excel(ruta)
+        try:
+            wb = load_workbook(archivo, read_only=True)
+            try:
+                return list(wb.sheetnames)
+            finally:
+                wb.close()
+        except PermissionError as exc:
+            raise ErrorDeNegocio(
+                f"El archivo «{archivo.name}» está abierto en Excel u otro programa. Cerralo y volvé a intentar."
+            ) from exc
+        except (zipfile.BadZipFile, InvalidFileException) as exc:
+            raise ErrorDeNegocio(
+                f"El archivo «{archivo.name}» está dañado o no es un archivo .xlsx válido."
+            ) from exc
+
+    def leer_hoja(
+        self, ruta: str, nombre_hoja: str | None = None
+    ) -> HojaCrudaExcel:
+        archivo = _validar_ruta_excel(ruta)
+        wb_data = None
+        wb_formula = None
+        try:
+            try:
+                wb_data = load_workbook(archivo, data_only=True)
+                wb_formula = load_workbook(archivo, data_only=False)
+            except PermissionError as exc:
+                raise ErrorDeNegocio(
+                    f"El archivo «{archivo.name}» está abierto en Excel u otro programa. Cerralo y volvé a intentar."
+                ) from exc
+            except (zipfile.BadZipFile, InvalidFileException) as exc:
+                raise ErrorDeNegocio(
+                    f"El archivo «{archivo.name}» está dañado o no es un archivo .xlsx válido."
+                ) from exc
+
+            if nombre_hoja is None:
+                hoja_nombre = wb_data.sheetnames[0]
+            else:
+                if nombre_hoja not in wb_data.sheetnames:
+                    raise ErrorDeNegocio(
+                        f"La hoja «{nombre_hoja}» no existe en el archivo «{archivo.name}»."
+                    )
+                hoja_nombre = nombre_hoja
+
+            ws_data = wb_data[hoja_nombre]
+            ws_formula = wb_formula[hoja_nombre]
+
+            mapa_combinadas: dict[tuple[int, int], Any] = {}
+            filas_con_combinadas: set[int] = set()
+
+            for rango in ws_data.merged_cells.ranges:
+                min_col, min_row, max_col, max_row = (
+                    rango.min_col,
+                    rango.min_row,
+                    rango.max_col,
+                    rango.max_row,
+                )
+                for r in range(min_row, max_row + 1):
+                    filas_con_combinadas.add(r)
+                val_origen = ws_data.cell(row=min_row, column=min_col).value
+                for r in range(min_row, max_row + 1):
+                    for c in range(min_col, max_col + 1):
+                        if (r, c) != (min_row, min_col):
+                            mapa_combinadas[(r, c)] = val_origen
+
+            max_row = ws_data.max_row or 0
+            max_col = ws_data.max_column or 0
+
+            filas_crudas: list[FilaCrudaExcel] = []
+            for r in range(1, max_row + 1):
+                valores_fila: list[ValorCeldaCruda] = []
+                for c in range(1, max_col + 1):
+                    cell_d = ws_data.cell(row=r, column=c)
+                    val = cell_d.value
+                    if val is None and (r, c) in mapa_combinadas:
+                        val = mapa_combinadas[(r, c)]
+                    if val is None:
+                        cell_f = ws_formula.cell(row=r, column=c)
+                        if cell_f.value is not None and str(cell_f.value).startswith("="):
+                            val = "__FORMULA_SIN_VALOR__"
+                    valores_fila.append(
+                        _convertir_valor_celda_openpyxl(val, cell_d.number_format)
+                    )
+
+                filas_crudas.append(
+                    FilaCrudaExcel(
+                        numero_fila=r,
+                        valores=tuple(valores_fila),
+                        tiene_celdas_combinadas=(r in filas_con_combinadas),
+                    )
+                )
+
+            filas_no_vacias = [
+                f for f in filas_crudas if any(v is not None for v in f.valores)
+            ]
+            if len(filas_no_vacias) > 501:
+                raise ErrorDeNegocio(
+                    f"El archivo supera el límite máximo de 500 filas de datos ({len(filas_no_vacias) - 1} filas encontradas)."
+                )
+
+            return HojaCrudaExcel(
+                nombre=hoja_nombre,
+                filas=tuple(filas_crudas),
+            )
+        finally:
+            if wb_data is not None:
+                wb_data.close()
+            if wb_formula is not None:
+                wb_formula.close()
+

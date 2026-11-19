@@ -4,7 +4,9 @@ Acá van los `Protocol`; `brickly.infraestructura` los implementa y `main.py`
 decide qué implementación entra. Los tests inyectan dobles sin tocar SQLite.
 """
 
+from dataclasses import dataclass
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Protocol
 
@@ -41,6 +43,34 @@ from brickly.dominio.cuota import Cuota
 from brickly.dominio.departamento import Departamento
 from brickly.dominio.ipc import AjusteCalculado, IpcMensual
 from brickly.dominio.pago import ImputacionPago, MedioPago, Pago
+
+ValorCeldaCruda = str | int | Decimal | date | None
+
+
+@dataclass(frozen=True)
+class FilaCrudaExcel:
+    """Fila leída directamente de un archivo `.xlsx` sin transformación."""
+
+    numero_fila: int
+    valores: tuple[ValorCeldaCruda, ...]
+    tiene_celdas_combinadas: bool = False
+
+
+@dataclass(frozen=True)
+class HojaCrudaExcel:
+    """Hoja leída con sus filas crudas e información de estructura."""
+
+    nombre: str
+    filas: tuple[FilaCrudaExcel, ...]
+
+
+@dataclass(frozen=True)
+class ItemImportacionPersistible:
+    """Unidad validada para persistir atómicamente en base de datos."""
+
+    departamento: Departamento
+    contrato: Contrato | None = None
+    inquilino: Inquilino | None = None
 
 
 class Reloj(Protocol):
@@ -97,6 +127,10 @@ class RepositorioDepartamentos(Protocol):
     ) -> list[FilaCuotaDepartamento]: ...
 
     def listar_pagos_cuota(self, cuota_id: int) -> list[PagoImputadoCuota]: ...
+
+    def guardar_lote_importacion(
+        self, items: list[ItemImportacionPersistible]
+    ) -> tuple[int, int]: ...
 
 
 class RepositorioCobranzas(Protocol):
@@ -166,12 +200,36 @@ class AlmacenTokenIpc(Protocol):
     def borrar_token(self) -> None: ...
 
 
+@dataclass(frozen=True)
+class FirmaAdminGuardada:
+    """Firma en imagen (PNG/JPG/WebP/BMP) del administrador persistida en la base."""
+
+    nombre_archivo: str
+    contenido: bytes
+    actualizado_en: str
+
+    @property
+    def contenido_pdf(self) -> bytes:
+        return self.contenido
+
+
 class RepositorioConfiguracion(Protocol):
-    """Valores sueltos de la instalación (tabla `configuracion`, clave/valor)."""
+    """Valores sueltos de la instalación (`configuracion`) y firma (`firma_admin`)."""
 
     def cargar(self) -> dict[str, str]: ...
 
     def actualizar(self, valores: dict[str, str]) -> None: ...
+
+    def obtener_firma(self) -> FirmaAdminGuardada | None: ...
+
+    def guardar_firma(
+        self,
+        nombre_archivo: str,
+        contenido: bytes,
+        actualizado_en: str | None = None,
+    ) -> None: ...
+
+    def borrar_firma(self) -> None: ...
 
 
 class RepositorioInformes(Protocol):
@@ -204,6 +262,16 @@ class EscritorExcel(Protocol):
     """Escritura física de un `LibroExportable` en un archivo `.xlsx` (H7)."""
 
     def escribir(self, ruta: Path | str, libro: LibroExportable) -> None: ...
+
+
+class LectorExcel(Protocol):
+    """Lectura física de un libro `.xlsx` y sus hojas como celdas crudas (H9)."""
+
+    def listar_hojas(self, ruta: str) -> list[str]: ...
+
+    def leer_hoja(
+        self, ruta: str, nombre_hoja: str | None = None
+    ) -> HojaCrudaExcel: ...
 
 
 class Respaldador(Protocol):

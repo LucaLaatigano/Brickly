@@ -28,6 +28,7 @@ Everything runs **100% locally** on your PC — no external servers, no cloud su
 | :--- | :--- |
 | 📊 **Dashboard (`Panel`)** | Real-time monthly KPIs, top 5 overdue arrears with one-click payment, automated alerts (missing CPI, expired leases, backup reminders), and onboarding setup checklist. |
 | 🏢 **Apartments & Leases (`Departamentos`)** | Full unit inventory with debounced search, status filters, per-apartment account statements, and lease renewals that preserve payment history. |
+| 📥 **Excel Import (`Departamentos`)** | Import departments, tenants, and active leases from `.xlsx` with assisted column mapping, mandatory preview, inline correction in a 380 px panel, downloadable template, and idempotent/atomic deduplication. |
 | 💰 **Collections & Arrears (`Cobranzas`)** | Idempotent monthly installment generation, cross-period overdue view, 380 px **Payment Side Panel** with daily simple late-fee calculation and FIFO allocation, and one-click **PDF Payment Receipts (`Constancia de pago`)** for paid installments. |
 | 📈 **CPI Adjustments (`Ajustes IPC`)** | Official **INDEC API** synchronization + manual fallback, automatic cycle detection, and a **3-step adjustment wizard** featuring compound rate calculations and audited manual overrides. |
 | 📑 **Reports & Backup (`Informes`)** | Full multi-sheet Excel workbook (`.xlsx` with `Resumen`, `Deudas`, `Pagos`, `Cuotas`, `Contratos`, `Ajustes IPC`), Excel-ready CSV exports (`UTF-8 with BOM`), and native SQLite online backups. |
@@ -35,14 +36,27 @@ Everything runs **100% locally** on your PC — no external servers, no cloud su
 
 ---
 
-## 🧾 Monthly Payment Receipts (`Constancia de pago` PDF)
+## 📥 Import from Excel (`Departamentos`)
+
+1. Go to **Departamentos → Importar desde Excel** (or use the empty-state action).
+2. Pick a `.xlsx` file and sheet. Brickly auto-detects the header row and suggests the mapping for its 16 canonical fields.
+3. Review the preview and fix or skip rows in the 380 px side panel. A row with errors blocks the import until it is corrected or skipped.
+4. Confirm. Existing units are reported as `Ya existe (se omite)`; the whole batch is atomic and re-importing the same file does not duplicate data.
+
+The wizard can generate a blank template. A fictitious example for demos and testing is available at `docs/ejemplos/importacion-departamentos-ficticios.xlsx` (not real data).
+
+---
+
+## 🧾 Monthly Payment Receipts (PDF)
 
 Once a monthly installment reaches the **`Pagada`** state, you can issue a PDF receipt for the tenant:
 
 1. Go to **Cobranzas → Mes**.
-2. Click any row with status **`Pagada`** to open the 380 px **Constancia de pago** preview panel on the right.
+2. Click any row with status **`Pagada`** to open the 380 px receipt preview panel on the right.
 3. Review the unit, tenant (from that installment's lease), period, principal, late fee collected, imputed payments, and signature block.
-4. Click **Generar PDF** and choose where to save `constancia-<unidad>-<mes>-<anio>.pdf` (defaults to Desktop).
+4. Click **Generar PDF** and choose where to save `constancia-<unidad>-<mes>-<anio>.pdf` (defaults to Desktop). The document is titled **Recibo de pago**.
+
+You can upload a photo of your signature in **Configuración → Datos del administrador**. Brickly stores it locally in the database and draws it above the signature line; without a photo, the line remains for hand-signing.
 
 > **Scope & Legal Note:** The generated PDF certifies payment **only for that specific unit and period** (it is not a general clearance or *libre deuda* certificate). It includes a **visual** signature line (`Propietario/a o Administrador/a`) for printing or hand-signing — it is **not** a digital cryptographic signature and **not** a tax invoice or fiscal receipt (*comprobante fiscal*).
 
@@ -193,6 +207,7 @@ For design decisions and implementation details, see:
 - [ADR-0002: MVP Business Rules](docs/adr/0002-reglas-de-negocio-mvp.md)
 - [ADR-0003: Automatic INDEC CPI Synchronization](docs/adr/0003-ipc-automatico-indec.md)
 - [ADR-0004: Monthly PDF Payment Receipt](docs/adr/0004-constancia-pago-pdf.md)
+- [ADR-0005: Excel Import of Departments, Tenants, and Active Leases](docs/adr/0005-importacion-excel-departamentos-contratos.md)
 - [UX/UI Specification](docs/ux/especificacion-ux-ui.md)
 
 ---

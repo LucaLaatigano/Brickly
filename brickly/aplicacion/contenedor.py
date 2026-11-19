@@ -11,6 +11,7 @@ from brickly.aplicacion.cobranzas import ServicioCobranzas
 from brickly.aplicacion.configuracion import ServicioConfiguracion
 from brickly.aplicacion.constancias import ServicioConstancias
 from brickly.aplicacion.departamentos import ServicioDepartamentos
+from brickly.aplicacion.importacion import ServicioImportacionDepartamentos
 from brickly.aplicacion.informes import ServicioInformes
 from brickly.aplicacion.sincronizacion_ipc import ServicioSincronizacionIpc
 
@@ -24,6 +25,7 @@ class Servicios:
     informes: ServicioInformes | None = None
     constancias: ServicioConstancias | None = None
     configuracion: ServicioConfiguracion | None = None
+    importacion: ServicioImportacionDepartamentos | None = None
     # Ruta física de la base (la muestra Configuración, §3.7). La elige main.
     ruta_base: str | None = None
 

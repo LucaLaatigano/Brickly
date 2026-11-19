@@ -20,7 +20,11 @@ from typing import TYPE_CHECKING
 from brickly.dominio.errores import ErrorDeValidacion
 
 if TYPE_CHECKING:
-    from brickly.aplicacion.puertos import Reloj, RepositorioConfiguracion
+    from brickly.aplicacion.puertos import (
+        FirmaAdminGuardada,
+        Reloj,
+        RepositorioConfiguracion,
+    )
 
 # Redondeo de cuota: 1 = centavos (default), 100 = $ 100 (ADR-0002 §2).
 REDONDEO_CENTAVOS = 1
@@ -73,6 +77,21 @@ def _fecha(mapa: dict[str, str], clave: str) -> date | None:
         return date.fromisoformat(mapa[clave])
     except (KeyError, ValueError):
         return None
+
+
+def es_imagen_firma_valida(datos: bytes) -> bool:
+    """Verifica por magic bytes que `datos` corresponda a PNG, JPEG, WebP o BMP."""
+    if not datos:
+        return False
+    if datos.startswith(b"\x89PNG\r\n\x1a\n") and len(datos) > 8:
+        return True
+    if datos.startswith(b"\xff\xd8\xff") and len(datos) > 3:
+        return True
+    if len(datos) > 12 and datos[:4] == b"RIFF" and datos[8:12] == b"WEBP":
+        return True
+    if len(datos) >= 14 and datos.startswith(b"BM"):
+        return True
+    return False
 
 
 class ServicioConfiguracion:
@@ -144,6 +163,40 @@ class ServicioConfiguracion:
             }
         )
 
+    # --- firma (foto/imagen) del administrador -------------------------------
+
+    def obtener_firma(self) -> FirmaAdminGuardada | None:
+        return self._repositorio.obtener_firma()
+
+    def guardar_firma(
+        self, nombre_archivo: str, contenido: bytes
+    ) -> FirmaAdminGuardada:
+        nombre = (nombre_archivo or "").strip()
+        if not nombre:
+            raise ErrorDeValidacion(
+                "El nombre del archivo de firma no puede estar vacío.",
+                campo="firma_imagen",
+            )
+        if not isinstance(contenido, (bytes, bytearray)) or not es_imagen_firma_valida(
+            bytes(contenido)
+        ):
+            raise ErrorDeValidacion(
+                "El archivo seleccionado no es una imagen válida (usá PNG, JPG, WebP o BMP).",
+                campo="firma_imagen",
+            )
+        datos_imagen = bytes(contenido)
+        self._repositorio.guardar_firma(nombre, datos_imagen)
+        guardada = self._repositorio.obtener_firma()
+        if guardada is None:
+            raise ErrorDeValidacion(
+                "No se pudo guardar la firma en la base de datos.",
+                campo="firma_imagen",
+            )
+        return guardada
+
+    def borrar_firma(self) -> None:
+        self._repositorio.borrar_firma()
+
     # --- respaldo ------------------------------------------------------------
 
     def ultimo_respaldo(self) -> date | None:
@@ -151,3 +204,4 @@ class ServicioConfiguracion:
 
     def registrar_respaldo(self, fecha: date) -> None:
         self._repositorio.actualizar({"ultimo_respaldo": fecha.isoformat()})
+

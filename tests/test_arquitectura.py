@@ -23,6 +23,7 @@ PROHIBIDOS = {
         "customtkinter",
         "openpyxl",
         "reportlab",
+        "PIL",
         "brickly.aplicacion",
         "brickly.infraestructura",
         "brickly.ui",
@@ -32,6 +33,7 @@ PROHIBIDOS = {
         "customtkinter",
         "openpyxl",
         "reportlab",
+        "PIL",
         "brickly.infraestructura",
         "brickly.ui",
     ),
@@ -39,6 +41,7 @@ PROHIBIDOS = {
         "sqlite3",
         "openpyxl",
         "reportlab",
+        "PIL",
         "brickly.infraestructura",
     ),
     "brickly/infraestructura": (

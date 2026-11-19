@@ -29,6 +29,64 @@ def _limpiar(texto: str | None) -> str | None:
     return texto or None
 
 
+def limpiar_espacios(texto: str | None) -> str:
+    """Colapsa secuencias de espacios en uno solo y recorta extremos."""
+    return " ".join((texto or "").split())
+
+
+def clave_unidad_normalizada(
+    direccion: str, piso: str | None = None, depto: str | None = None
+) -> tuple[str, str, str]:
+    """Clave canónica inmutable (direccion, piso, depto) en minúsculas para deduplicar.
+
+    Normaliza pisos con sufijo ordinal ('3º' o '3°' -> '3') para que coincidan
+    con el formato estándar de `nombre_unidad`.
+    """
+    dir_norm = limpiar_espacios(direccion).casefold()
+    piso_limpio = limpiar_espacios(piso)
+    if piso_limpio.endswith(("º", "°")):
+        base = piso_limpio[:-1].rstrip()
+        if base.isdigit():
+            piso_limpio = base
+    piso_norm = piso_limpio.casefold()
+    depto_norm = limpiar_espacios(depto).casefold()
+    return (dir_norm, piso_norm, depto_norm)
+
+
+def desglosar_unidad_compuesta(
+    texto_unidad: str, piso: str | None = None, depto: str | None = None
+) -> tuple[str, str | None, str | None]:
+    """Separa una unidad compuesta con ' · ' si no se especificaron piso ni depto.
+
+    Ejemplos:
+    - 'Rivadavia 3421 · 3º B' -> ('Rivadavia 3421', '3', 'B')
+    - 'Sarmiento 890 · PB' -> ('Sarmiento 890', 'PB', None)
+    - 'Mitre 1180' -> ('Mitre 1180', None, None)
+    """
+    piso_limpio = _limpiar(piso)
+    depto_limpio = _limpiar(depto)
+    texto = (texto_unidad or "").strip()
+
+    if piso_limpio is None and depto_limpio is None and " · " in texto:
+        direccion_res, resto = texto.split(" · ", 1)
+        tokens = resto.strip().split(maxsplit=1)
+        if not tokens:
+            return (direccion_res.strip(), None, None)
+        candidato_piso = tokens[0]
+        if candidato_piso.endswith(("º", "°")):
+            base = candidato_piso[:-1].rstrip()
+            if base.isdigit():
+                candidato_piso = base
+        candidato_depto = tokens[1].strip() if len(tokens) > 1 else None
+        return (
+            direccion_res.strip(),
+            candidato_piso or None,
+            candidato_depto or None,
+        )
+
+    return (texto, piso_limpio, depto_limpio)
+
+
 @dataclass(frozen=True)
 class Departamento:
     """La validación vive acá: no se puede construir un departamento inválido."""
